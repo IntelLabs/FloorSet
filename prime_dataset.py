@@ -12,21 +12,21 @@ from torch.utils.data import Dataset, DataLoader
 
 GBFACTOR = float(1 << 30)
 
-
 def decide_download(url):
     d = ur.urlopen(url)
-    size = int(d.info()["Content-Length"])/GBFACTOR
+    size = int(d.info()["Content-Length"])/(2**30)
     # confirm if larger than 1GB
     if size > 1:
         return input("This will download %.2fGB. Will you proceed? (y/N) " % (size)).lower() == "y"
     else:
         return True
 
-
 def download_dataset(root):
-    url = 'https://huggingface.co/datasets/IntelLabs/FloorSet/blob/main/dataset_prime.tar.gz'
-    f_name = os.path.join(root, 'floorplan_data.tgz')
-    if not os.path.exists(f_name) and decide_download(url):
+    url = 'https://huggingface.co/datasets/IntelLabs/FloorSet/resolve/main/PrimeTensorData.tar.gz'
+    f_name = os.path.join(root, 'floorplan_primedata.tgz')
+    if os.path.exists(f_name):
+        file_size = os.path.getsize(f_name)/(2**30)
+    if (not os.path.exists(f_name) and decide_download(url)) or (os.path.exists(f_name) and decide_download(url) and file_size < 13 ) :
         data = ur.urlopen(url)
         size = int(data.info()["Content-Length"])
         chunk_size = 1024*1024
@@ -38,8 +38,10 @@ def download_dataset(root):
                 chunk = data.read(chunk_size)
                 downloaded_size += len(chunk)
                 pbar.set_description("Downloaded {:.2f} GB".format(
-                    float(downloaded_size)/GBFACTOR))
+                    float(downloaded_size)/(2**30)))
                 f.write(chunk)
+    else:
+        print('Tar file already downloaded...')
     print("Downloaded floorplan data to", f_name)
     print("Unpacking. This may take a while")
     file = tarfile.open(f_name)
@@ -47,45 +49,14 @@ def download_dataset(root):
     file.close()
     os.remove(f_name)
 
-
 def is_dataset_downloaded(root):
-    return len(glob.glob(os.path.join(root, 'floorplan_data', 'worker*'))) >= 40
+    return len(glob.glob(os.path.join(root, 'PrimeTensorData', 'config*'))) >= 100
 
 
-class FloorplanDataset(Dataset):
-    def __init__(self, root):
-        if not is_dataset_downloaded(root):
-            download_dataset(root)
-        self.all_files = []
-        for worker_idx in range(1, 40):
-            self.all_files.extend(glob.glob(os.path.join(
-                root, 'floorplan_data', f"worker{worker_idx}/gen*")))
-        self.layouts_per_file = 112
-        self.cached_file_idx = -1
-
-    def __len__(self):
-        return len(self.all_files) * self.layouts_per_file
-
-    def __getitem__(self, idx):
-        file_idx, layout_idx = divmod(idx, self.layouts_per_file)
-        if file_idx != self.cached_file_idx:
-            self.cached_file_contents = torch.load(self.all_files[file_idx])[0]
-            self.cached_file_idx = file_idx
-
-        (tree_data, block_sizes_pos, pins_pos,
-         b2b_connectivity, p2b_connectivity,
-         edge_constraints) = map(lambda x: x[layout_idx], self.cached_file_contents)
-
-        return (tree_data, block_sizes_pos, pins_pos,
-                b2b_connectivity, p2b_connectivity,
-                edge_constraints)
-
-
-def floorplan_collate(all_fps):
-    (tree_data, block_sizes_pos, pins_pos,
-     b2b_connectivity, p2b_connectivity,
-     edge_constraints) = list(zip(*all_fps))
-
+def floorplan_collate(batch):
+    (area_target, b2b_connectivity, p2b_connectivity, pins_pos,
+     placement_constraints) = list(zip(*batch))
+    
     def pad_to_largest(tens_list):
         ndims = tens_list[0].ndim
         max_dims = [max(x.size(dim) for x in tens_list)
@@ -102,6 +73,33 @@ def floorplan_collate(all_fps):
                 F.pad(tens, padding_tuple[::-1], value=pad_value))
         return torch.stack(padded_tensors)
 
-    return list(map(pad_to_largest, (tree_data, block_sizes_pos, pins_pos,
-                                     b2b_connectivity, p2b_connectivity,
-                                     edge_constraints)))
+    return list(map(pad_to_largest, (area_target, b2b_connectivity, p2b_connectivity,
+                                     pins_pos, placement_constraints)))
+
+class FloorplanDataset(Dataset):
+    def __init__(self, root):
+        if not is_dataset_downloaded(root):
+            download_dataset(root)
+        self.all_files = []
+        for worker_idx in range(21, 121):
+            self.all_files.extend(glob.glob(os.path.join(
+                root, 'PrimeTensorData', f"config_{worker_idx}/primedata*")))
+        self.layouts_per_file = 1000
+        self.cached_file_idx = -1
+
+    def __len__(self):
+        return len(self.all_files) * self.layouts_per_file
+
+    def __getitem__(self, idx):
+        file_idx, layout_idx = divmod(idx, self.layouts_per_file)
+        if file_idx != self.cached_file_idx:
+            self.cached_file_contents = torch.load(self.all_files[file_idx])
+            self.cached_file_idx = file_idx
+
+        area_target = self.cached_file_contents[layout_idx][0][:,0]
+        placement_constraints = self.cached_file_contents[layout_idx][0][:,1:]
+        b2b_connectivity = self.cached_file_contents[layout_idx][1]
+        p2b_connectivity = self.cached_file_contents[layout_idx][2]
+        pins_pos = self.cached_file_contents[layout_idx][3]
+
+        return (area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints)
