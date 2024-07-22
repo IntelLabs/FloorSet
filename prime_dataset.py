@@ -54,8 +54,16 @@ def is_dataset_downloaded(root):
 
 
 def floorplan_collate(batch):
-    (area_target, b2b_connectivity, p2b_connectivity, pins_pos,
-     placement_constraints) = list(zip(*batch))
+    area_target = [item['input'][0] for item in batch]
+    b2b_connectivity = [item['input'][1] for item in batch]
+    p2b_connectivity = [item['input'][2] for item in batch]
+    pins_pos = [item['input'][3] for item in batch]
+    placement_constraints = [item['input'][4] for item in batch]
+
+
+    fp_sol = [item['label'][0] for item in batch]
+    metrics_sol = [item['label'][1] for item in batch]
+    
     
     def pad_to_largest(tens_list):
         ndims = tens_list[0].ndim
@@ -74,32 +82,46 @@ def floorplan_collate(batch):
         return torch.stack(padded_tensors)
 
     return list(map(pad_to_largest, (area_target, b2b_connectivity, p2b_connectivity,
-                                     pins_pos, placement_constraints)))
+                                     pins_pos, placement_constraints))), [fp_sol, metrics_sol]
+    
+    ##list(map(pad_to_largest, (fp_sol, metrics_sol)))
 
 class FloorplanDataset(Dataset):
     def __init__(self, root):
         if not is_dataset_downloaded(root):
             download_dataset(root)
-        self.all_files = []
+        self.all_input_files = []
+        self.all_label_files = []
         for worker_idx in range(21, 121):
-            self.all_files.extend(glob.glob(os.path.join(
+            self.all_input_files.extend(glob.glob(os.path.join(
                 root, 'PrimeTensorData', f"config_{worker_idx}/primedata*")))
+            self.all_label_files.extend(glob.glob(os.path.join(
+                root, 'PrimeTensorData', f"config_{worker_idx}/primelabel*")))            
         self.layouts_per_file = 1000
         self.cached_file_idx = -1
 
     def __len__(self):
-        return len(self.all_files) * self.layouts_per_file
+        return len(self.all_input_files) * self.layouts_per_file
 
     def __getitem__(self, idx):
         file_idx, layout_idx = divmod(idx, self.layouts_per_file)
         if file_idx != self.cached_file_idx:
-            self.cached_file_contents = torch.load(self.all_files[file_idx])
+            self.cached_input_file_contents = torch.load(self.all_input_files[file_idx])
+            self.cached_label_file_contents = torch.load(self.all_label_files[file_idx])
             self.cached_file_idx = file_idx
 
-        area_target = self.cached_file_contents[layout_idx][0][:,0]
-        placement_constraints = self.cached_file_contents[layout_idx][0][:,1:]
-        b2b_connectivity = self.cached_file_contents[layout_idx][1]
-        p2b_connectivity = self.cached_file_contents[layout_idx][2]
-        pins_pos = self.cached_file_contents[layout_idx][3]
+        area_target = self.cached_input_file_contents[layout_idx][0][:,0]
+        placement_constraints = self.cached_input_file_contents[layout_idx][0][:,1:]
+        b2b_connectivity = self.cached_input_file_contents[layout_idx][1]
+        p2b_connectivity = self.cached_input_file_contents[layout_idx][2]
+        pins_pos = self.cached_input_file_contents[layout_idx][3]
 
-        return (area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints)
+
+        fp_sol = self.cached_label_file_contents[layout_idx][1]
+        metrics_sol = self.cached_label_file_contents[layout_idx][0]
+
+        input_data = (area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints)
+        label_data = (fp_sol, metrics_sol)
+        sample = {'input': input_data, 'label': label_data}
+        return sample
+        #return (area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints)

@@ -2,7 +2,9 @@ import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Patch, Circle
-
+import matplotlib.patches as patches
+from shapely.geometry import Polygon, LineString, Point
+import copy
 
 # two bits per position
 # bit 1: 0 - no specific position, 1: top: 2: bottom
@@ -49,6 +51,104 @@ CONSTR_TO_STR = {
     "pink": "top-right",  # top-right corner
 }
 
+def get_hard_color(constraint):
+    # Define colors for each type of constraint
+    colors = {
+        'default': ("silver", "no constraint"),
+        'boundary': ("olive", "boundary"),
+        'fixed': ("violet", "fixed"),
+        'preplaced': ("gray", "preplaced"),
+        'group': ("red", "cluster"),
+        'mib': ("darkgreen", "MIB")
+    }
+
+    # Determine the face color and label based on constraints
+    if constraint[3]:
+        return colors['group']
+    elif constraint[0]:
+        return colors['fixed']
+    elif constraint[1]:
+        return colors['preplaced']
+    elif constraint[2]:
+        return colors['mib']
+    elif constraint[4] > 1:
+        return colors['boundary']
+    else:
+        return colors['default']
+
+
+def visualize_prime(fp_sol, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints, lind=0):
+    fig, ax = plt.subplots()
+    default_color = 'silver'
+    edge_color = 'black'
+    
+    # Initialize dimensions
+    W, H = 0, 0
+    
+    # Plot floorplan solution polygons
+    for ind, elem in enumerate(fp_sol):
+        poly_elem = Polygon(elem.tolist())
+        hard_const = placement_constraints[ind]
+        
+        face_color, label_text = get_hard_color(hard_const)
+        patch = patches.Polygon(
+            list(poly_elem.exterior.coords),
+            closed=True,
+            fill=True,
+            edgecolor=edge_color,
+            facecolor=face_color,
+            label=label_text,
+            alpha=0.3
+        )
+        ax.add_patch(patch)
+        
+        llx, lly = poly_elem.bounds[0], poly_elem.bounds[1]
+        urx, ury = poly_elem.bounds[2], poly_elem.bounds[3]
+        W = max(W, urx)
+        H = max(H, ury)
+        
+        ax.annotate(str(ind + 1), (llx, lly), fontsize=6)
+    
+    # Plot pin positions
+    for pname in range(pins_pos.shape[0]):
+        x, y = pins_pos[pname]
+        circ = Circle((x, y), radius=1, color='g')
+        ax.add_patch(circ)
+    
+    # Plot block-to-block (B2B) connectivity
+    for src_block, dst_block in b2b_connectivity[:, :2]:
+        src_block, dst_block = int(src_block.item()), int(dst_block.item())
+        if src_block != -1 and dst_block != -1:
+            poly_elem1 = Polygon(fp_sol[src_block].tolist())
+            poly_elem2 = Polygon(fp_sol[dst_block].tolist())
+            llx1, lly1 = poly_elem1.bounds[0], poly_elem1.bounds[1]
+            llx2, lly2 = poly_elem2.bounds[0], poly_elem2.bounds[1]
+            plt.plot((llx1, llx2), (lly1, lly2), color='r', linewidth=0.1)
+    
+    # Plot pin-to-block (P2B) connectivity
+    for src_block, dst_block in p2b_connectivity[:, :2]:
+        src_block, dst_block = int(src_block.item()), int(dst_block.item())
+        if src_block != -1 and dst_block != -1:
+            poly_elem2 = Polygon(fp_sol[dst_block - 1].tolist())
+            llx2, lly2 = poly_elem2.bounds[0], poly_elem2.bounds[1]
+            plt.plot(
+                (pins_pos[src_block][0], llx2),
+                (pins_pos[src_block][1], lly2),
+                color='b',
+                linewidth=0.1
+            )
+    
+    # Set plot limits and labels
+    plt.xlim(0, W * 1.5)
+    plt.ylim(0, H * 1.5)
+    plt.title('Baseline Layout ' + str(lind))
+    
+    # Create legend
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), loc='upper right', title='Placement Constraints', fontsize=6)
+    
+    plt.show()
 
 def visualize_placement(block_sizes,  # n_blocks x 2
                         block_xy,  # n_blocks x 2
