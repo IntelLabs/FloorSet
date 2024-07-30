@@ -24,11 +24,11 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 
 ### Circuit distribution
 <p align="center">
-  <img src="images/prime_histogram.png" height=300>
+  <img src="images/prime_histogram.png" width=400>
 </p>
 
 <p align="center">
-  <img src="images/lite_histogram.png" height=300>
+  <img src="images/lite_histogram.png" width=400>
 </p>
 
 ## Prerequisites
