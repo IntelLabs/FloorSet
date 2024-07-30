@@ -41,7 +41,8 @@ pip install -r requirements.txt
 ## Loading the data
 
 To load the dataset, 
-1.  **Dataloader codes:** To load the datasets and iterate, use primeloader.py and liteloader.py.
+1.  **Dataloader codes:** To load the datasets and iterate, use primeloader.py and liteloader.py. 
+(Avoid shuffling, as it can lead to slower data loading times)
 2.  **Validator code:** To report metrics for a floorplan solution, use validate.py.
 3.  **Wirelength and area calculation code:** 
 
