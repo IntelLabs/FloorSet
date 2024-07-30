@@ -46,11 +46,40 @@ To load the dataset,
 
 ### Dataset format:
     Inputs:
-        # area_target: bsz x n_blocks - Area targets for each block
-        # b2b_connectivity: bsz x b2b_edges x edge-weight - Block-to-block connectivity
-        # p2b_connectivity: bsz x p2b_edges x edge-weight - Pin-to-block connectivity
-        # pins_pos: bsz x n_pins x 2 - Pins or terminals (x, y) location
-        # placement_constraints: bsz x n_blocks x 5 - Constraints [fixed, preplaced, multi-instantiation, cluster, boundary]
+        # area_target: batch_size x n_blocks - Area targets for each block
+        # b2b_connectivity: batch_size x b2b_edges x edge-weight - Block-to-block connectivity
+        # p2b_connectivity: batch_size x p2b_edges x edge-weight - Pin-to-block connectivity
+        # pins_pos: batch_size x n_pins x 2 - External pins or terminals (x, y) locations
+        # placement_constraints: batch_size x n_blocks x 5 - Block-wise placement constraints [fixed, preplaced, multi-instantiation, cluster, boundary]
+            - fixed flag: 0/1
+            - preplaced flag: 0/1
+            - multi-instantiation block (mib): 0 if no constraint, otherwise the index indicates the group-id that shares the share the shape. Each mib group indicates instantiations of the one master partition.
+                -- for example, blocks with index-1 form the first mib-group and the blocks with index-2 form the second mib-group.
+            - cluster: 0 if no constraint, otherwise the index indicates the group-id that needs to be physically clustered (union of polygons in the cluster should be one continuous polygon)
+                -- for example, blocks with index-1 form the first cluster and the blocks with index-2 form the second cluster.
+            - boundary: 0 if no constraint, 
+                -- LEFT: 1
+                -- RIGHT: 2
+                -- TOP: 4
+                -- BOTTOM: 8
+                -- TOP-LEFT: 5
+                -- TOP-RIGHT: 6
+                -- BOTTOM-LEFT: 9
+                -- BOTTOM-RIGHT: 10
+
+            EDGE_TO_ID = {
+    "co": torch.LongTensor([0, 0]),  # no constraints
+    "be": torch.LongTensor([2, 0]),  # bottom edge
+    "le": torch.LongTensor([0, 1]),  # left edge
+    "te": torch.LongTensor([1, 0]),  # top edge
+    "re": torch.LongTensor([0, 2]),  # right edge
+    "bl": torch.LongTensor([2, 1]),  # bottom-left corner
+    "br": torch.LongTensor([2, 2]),  # bottom-right corner
+    "tl": torch.LongTensor([1, 1]),  # top-left corner
+    "tr": torch.LongTensor([1, 2]),  # top-right corner
+}
+
+            
     Labels:
         # sol: bsz x n_blocks - Polygon shape of each block (target solution) containing a list of polygon vertices for each block.
         # metrics: [area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]
