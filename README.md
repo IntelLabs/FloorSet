@@ -37,6 +37,26 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 pip install -r requirements.txt
 ```
 
+
+## Loading the data
+
+To load the dataset, 
+1.  ** Dataloader codes: primeloader.py and liteloader.py.
+2.  ** Validator code: 
+
+### Dataset format:
+    Inputs:
+        # area_target: bsz x n_blocks - Area targets for each block
+        # b2b_connectivity: bsz x b2b_edges x edge-weight - Block-to-block connectivity
+        # p2b_connectivity: bsz x p2b_edges x edge-weight - Pin-to-block connectivity
+        # pins_pos: bsz x n_pins x 2 - Pins or terminals (x, y) location
+        # placement_constraints: bsz x n_blocks x 5 - Constraints [fixed, preplaced, multi-instantiation, cluster, boundary]
+    Labels:
+        # sol: bsz x n_blocks - Polygon shape of each block (target solution) containing a list of polygon vertices for each block.
+        # metrics: [area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]
+
+
+
 ## Citation
 
 If you utilize this dataset for training machine learning models or validating floorplanning algorithms, we would appreciate it if you cite our work (https://arxiv.org/abs/2405.05480) [Accepted in ICCAD 2024].
