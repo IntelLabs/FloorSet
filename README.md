@@ -22,6 +22,15 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 | ![Image 3](images/primelayout80.png) <br> An example FloorSet-Prime layout with 80 partitions | ![Image 4](images/primelayout120.png) <br> An example FloorSet-Prime layout with 120 partitions |
 
 
+### Circuit distribution
+<p align="center">
+  <img src="images/prime_histogram.png" height=300>
+</p>
+
+<p align="center">
+  <img src="images/lite_histogram.png" height=300>
+</p>
+
 ## Prerequisites
 
 - **Required Storage for Dataset:** 35 GB.
