@@ -22,8 +22,20 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 | ![Image 3](images/primelayout80.png) <br> An example FloorSet-Prime layout with 80 partitions | ![Image 4](images/primelayout120.png) <br> An example FloorSet-Prime layout with 120 partitions |
 
 
+## Prerequisites
 
-**We're putting the finishing touches on the code. Stay tuned for an update here.**
+- **Required Storage for Dataset:** 35 GB.
+- **Prime Dataset:** 
+  - Approximately 15 GB will be downloaded, expanding to around 25 GB when decompressed.
+- **Lite Dataset:** 
+  - Approximately 2.5 GB will be downloaded, expanding to around 8.4 GB when decompressed.
+
+
+Dependencies can be installed using pip:
+
+```sh
+pip install -r requirements.txt
+```
 
 ## Citation
 
