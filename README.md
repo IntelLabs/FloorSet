@@ -19,19 +19,19 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 
 <div style="display: flex; flex-wrap: wrap; gap: 10px;">
     <div style="flex: 1 1 calc(50% - 10px); text-align: center;">
-        <img src="images/primelayout21.png" alt="Image 1" width="300"/>
+        <img src="images/primelayout21.png" alt="Image 1" width="250"/>
         <p>An example layout with 21 partitions</p>
     </div>
     <div style="flex: 1 1 calc(50% - 10px); text-align: center;">
-        <img src="images/primelayout50.png" alt="Image 2" width="300"/>
+        <img src="images/primelayout50.png" alt="Image 2" width="250"/>
         <p>An example layout with 50 partitions</p>
     </div>
     <div style="flex: 1 1 calc(50% - 10px); text-align: center;">
-        <img src="images/primelayout80.png" alt="Image 3" width="300"/>
+        <img src="images/primelayout80.png" alt="Image 3" width="250"/>
         <p>An example layout with 80 partitions</p>
     </div>
     <div style="flex: 1 1 calc(50% - 10px); text-align: center;">
-        <img src="images/primelayout120.png" alt="Image 4" width="300"/>
+        <img src="images/primelayout120.png" alt="Image 4" width="250"/>
         <p>An example layout with 120 partitions</p>
     </div>
 </div>
