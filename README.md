@@ -23,8 +23,6 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 
 
 ### Circuit distribution
-
-:---------------------------------------------------------------------------------:|
 | ![Image 5](images/prime_histogram.png) <br> FloorSet-Prime benchmark distribution | ![Image 6](images/lite_histogram.png) <br> FloorSet-Lite benchmark distribution |
 
 
