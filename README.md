@@ -43,9 +43,6 @@ pip install -r requirements.txt
 To load the dataset, 
 1.  **Dataloader codes:** To load the datasets and iterate, use primeloader.py and liteloader.py. 
 (Avoid shuffling by setting shuffle=False in the DataLoader), as it can lead to slower data loading times)
-        - DataLoader tuple
-        -- area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints = batch[0]
-        -- sol, metrics = batch[1]
 2.  **Validator code:** To report metrics for a floorplan solution, use validate.py.
 3.  **Wirelength and area calculation code:** 
 
