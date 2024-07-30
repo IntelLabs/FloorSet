@@ -41,8 +41,8 @@ pip install -r requirements.txt
 ## Loading the data
 
 To load the dataset, 
-1.  ** Dataloader codes: primeloader.py and liteloader.py.
-2.  ** Validator code: 
+1.  **Dataloader codes: primeloader.py and liteloader.py.
+2.  **Validator code: 
 
 ### Dataset format:
     Inputs:
