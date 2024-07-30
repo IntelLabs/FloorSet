@@ -17,9 +17,9 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
   <img src="images/primeflow.png" height=300>
 </p>
 
-| ![Image 1](images/primelayout21.png) <br> An example layout with 21 partitions | ![Image 2](images/primelayout50.png) <br> An example layout with 50 partitions |
+| ![Image 1](images/primelayout21.png) <br> An example FloorSet-Prime layout with 21 partitions | ![Image 2](images/primelayout50.png) <br> An example FloorSet-Prime layout with 50 partitions |
 |:---------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------:|
-| ![Image 3](images/primelayout80.png) <br> An example layout with 80 partitions | ![Image 4](images/primelayout120.png) <br> An example layout with 120 partitions |
+| ![Image 3](images/primelayout80.png) <br> An example FloorSet-Prime layout with 80 partitions | ![Image 4](images/primelayout120.png) <br> An example FloorSet-Prime layout with 120 partitions |
 
 
 
@@ -40,11 +40,17 @@ If you utilize this dataset for training machine learning models or validating f
       url={https://arxiv.org/abs/2405.05480}, 
 }
 
+
+## License
+
+This repository is released under the Apache-2.0 license. The license can be found in the LICENSE file. The dataset (https://huggingface.co/datasets/IntelLabs/FloorSet) is licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0). 
+
 ## Contact
 
 For any questions on the dataset, please email us:.
 
 ```
 Uday Mallappa: uday.mallappa@intel.com
+
 Hesham Mostafa: hesham.mostafa@intel.com
 ```
