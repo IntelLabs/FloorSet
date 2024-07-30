@@ -70,8 +70,16 @@ To load the dataset,
 
             
     Labels:
-        # sol: bsz x n_blocks - Polygon shape of each block (target solution) containing a list of polygon vertices for each block.
+        # sol: batch_size x n_blocks x vertices x 2 Polygon shape of each block (target solution) containing a list of polygon vertices for each block.
         # metrics: [area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]
+            -- area: target layout area
+            -- num_pins: number of terminals in the layout
+            -- num_total_nets: number of nets in the circuit
+            -- num_b2b_nets: number of inter-block nets
+            -- num_p2b_nets: number of terminal (or pin)-block nets
+            -- num_hardconstraints: total number of hard constraints (a block can be part of multiple non-conflicting constraints)
+            -- b2b_weighted_wl: inter-block weighted wirelength (center-center manhattan distance of the net * weight of the net)
+            -- p2b_weighted_wl: pin-block weighted wirelength (center-center manhattan distance of the net * weight of the net)
 
 
 
