@@ -97,21 +97,21 @@ To load the dataset,
 
 - **`metrics:`**  
   `[area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]`
-  - **Area:**  
-    Target layout area.
-  - **Number of Pins:**  
-    Number of terminals in the layout.
-  - **Number of Total Nets:**  
-    Number of nets in the circuit.
-  - **Number of B2B Nets:**  
+  - **area:**  
+    Target layout area of the bounding box.
+  - **num_pins:**  
+    Number of terminals (or pins) in the layout.
+  - **num_total_nets:**  
+    Total number of nets in the circuit.
+  - **num_b2b_nets:**  
     Number of inter-block nets.
-  - **Number of P2B Nets:**  
+  - **num_p2b_nets:**  
     Number of terminal (or pin)-block nets.
-  - **Number of Hard Constraints:**  
+  - **num_hardconstraints:**  
     Total number of hard constraints (a block can be part of multiple non-conflicting constraints).
-  - **B2B Weighted Wirelength:**  
+  - **b2b_weighted_wl:**  
     Inter-block weighted wirelength (center-center Manhattan distance of the net * weight of the net).
-  - **P2B Weighted Wirelength:**  
+  - **p2b_weighted_wl:**  
     Pin-block weighted wirelength (center-center Manhattan distance of the net * weight of the net).
 
 
