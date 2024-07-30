@@ -12,11 +12,16 @@ FloorSet is composed of two datasets:
 
 FloorSet is intended to spur fundamental research on large-scale constrained optimization problems and alleviates the core issue of reproducibility in modern ML-driven solutions to such problems. FloorSet has the potential to be “the Floorplanning” benchmark for the academic research community and can speed up research in this domain. All data in FloorSet is synthetically generated based on an algorithm designed by us, with no external input.
 
+
+<p align="center">
+  <img src="images/primeflow.png" height=300>
+</p>
+
 **We're putting the finishing touches on the code. Stay tuned for an update here.**
 
 ## Citation
 
-If you utilize this dataset for training machine learning models or validating floorplanning algorithms, we would appreciate it if you cite our work (https://arxiv.org/abs/2405.05480) [ICCAD 2024].
+If you utilize this dataset for training machine learning models or validating floorplanning algorithms, we would appreciate it if you cite our work (https://arxiv.org/abs/2405.05480) [Accepted in ICCAD 2024].
 
 ```
 @misc{mallappa2024floorsetvlsifloorplanning,
