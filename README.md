@@ -67,17 +67,6 @@ To load the dataset,
                 -- BOTTOM-LEFT: 9
                 -- BOTTOM-RIGHT: 10
 
-            EDGE_TO_ID = {
-    "co": torch.LongTensor([0, 0]),  # no constraints
-    "be": torch.LongTensor([2, 0]),  # bottom edge
-    "le": torch.LongTensor([0, 1]),  # left edge
-    "te": torch.LongTensor([1, 0]),  # top edge
-    "re": torch.LongTensor([0, 2]),  # right edge
-    "bl": torch.LongTensor([2, 1]),  # bottom-left corner
-    "br": torch.LongTensor([2, 2]),  # bottom-right corner
-    "tl": torch.LongTensor([1, 1]),  # top-left corner
-    "tr": torch.LongTensor([1, 2]),  # top-right corner
-}
 
             
     Labels:
