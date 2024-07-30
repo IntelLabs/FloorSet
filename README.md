@@ -47,11 +47,11 @@ To load the dataset,
 
 ### Dataset format:
     Inputs:
-        # area_target: batch_size x n_blocks - Area targets for each block
-        # b2b_connectivity: batch_size x b2b_edges x edge-weight - Block-to-block connectivity
-        # p2b_connectivity: batch_size x p2b_edges x edge-weight - Pin-to-block connectivity
-        # pins_pos: batch_size x n_pins x 2 - External pins or terminals (x, y) locations
-        # placement_constraints: batch_size x n_blocks x 5 - Block-wise placement constraints [fixed, preplaced, multi-instantiation, cluster, boundary]
+        - area_target: batch_size x n_blocks - Area targets for each block
+        - b2b_connectivity: batch_size x b2b_edges x edge-weight - Block-to-block connectivity
+        - p2b_connectivity: batch_size x p2b_edges x edge-weight - Pin-to-block connectivity
+        - pins_pos: batch_size x n_pins x 2 - External pins or terminals (x, y) locations
+        - placement_constraints: batch_size x n_blocks x 5 - Block-wise placement constraints [fixed, preplaced, multi-instantiation, cluster, boundary]
             - fixed flag: 0/1
             - preplaced flag: 0/1
             - multi-instantiation block (mib): 0 if no constraint, otherwise the index indicates the group-id that shares the share the shape. Each mib group indicates instantiations of the one master partition.
@@ -71,8 +71,8 @@ To load the dataset,
 
             
     Labels:
-        # sol: batch_size x n_blocks x vertices x 2 Polygon shape of each block (target solution) containing a list of polygon vertices for each block.
-        # metrics: [area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]
+        - sol: batch_size x n_blocks x vertices x 2 Polygon shape of each block (target solution) containing a list of polygon vertices for each block.
+        - metrics: [area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]
             -- area: target layout area
             -- num_pins: number of terminals in the layout
             -- num_total_nets: number of nets in the circuit
