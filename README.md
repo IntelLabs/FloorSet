@@ -31,7 +31,7 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
   - Approximately 2.5 GB will be downloaded, expanding to around 8.4 GB when decompressed.
 
 
-Dependencies can be installed using pip:
+- ** Dependencies can be installed using pip:
 
 ```sh
 pip install -r requirements.txt
