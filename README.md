@@ -110,6 +110,5 @@ For any questions on the dataset, please email us:.
 
 ```
 Uday Mallappa: uday.mallappa@intel.com
-
 Hesham Mostafa: hesham.mostafa@intel.com
 ```
