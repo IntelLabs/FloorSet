@@ -86,8 +86,15 @@ def visualize_prime(fp_sol, b2b_connectivity, p2b_connectivity, pins_pos, placem
     W, H = 0, 0
     
     # Plot floorplan solution polygons
+    all_poly_dict = {}
     for ind, elem in enumerate(fp_sol):
-        poly_elem = Polygon(elem.tolist())
+        polygon_list = elem.tolist()
+        unpadded_polygon_list = [point for point in polygon_list if point != [-1.0, -1.0]]
+        if len(unpadded_polygon_list) < 4:#ignore padded polygons that are dummy
+            continue
+        ##poly_elem = Polygon(elem.tolist())
+        poly_elem = Polygon(unpadded_polygon_list)
+        all_poly_dict[ind] = poly_elem
         hard_const = placement_constraints[ind]
         
         face_color, label_text = get_hard_color(hard_const)
@@ -115,21 +122,21 @@ def visualize_prime(fp_sol, b2b_connectivity, p2b_connectivity, pins_pos, placem
         circ = Circle((x, y), radius=1, color='g')
         ax.add_patch(circ)
     
-    # Plot block-to-block (B2B) connectivity
+    # Plot block-to-block (B2B) connectivity (0-index)
     for src_block, dst_block in b2b_connectivity[:, :2]:
         src_block, dst_block = int(src_block.item()), int(dst_block.item())
         if src_block != -1 and dst_block != -1:
-            poly_elem1 = Polygon(fp_sol[src_block].tolist())
-            poly_elem2 = Polygon(fp_sol[dst_block].tolist())
+            poly_elem1 = all_poly_dict[src_block] #Polygon(fp_sol[src_block].tolist())
+            poly_elem2 = all_poly_dict[dst_block]#Polygon(fp_sol[dst_block].tolist())
             llx1, lly1 = poly_elem1.bounds[0], poly_elem1.bounds[1]
             llx2, lly2 = poly_elem2.bounds[0], poly_elem2.bounds[1]
-            plt.plot((llx1, llx2), (lly1, lly2), color='r', linewidth=0.1)
+            plt.plot((llx1, llx2), (lly1, lly2), color='r', linewidth=0.3)
     
     # Plot pin-to-block (P2B) connectivity
     for src_block, dst_block in p2b_connectivity[:, :2]:
         src_block, dst_block = int(src_block.item()), int(dst_block.item())
         if src_block != -1 and dst_block != -1:
-            poly_elem2 = Polygon(fp_sol[dst_block - 1].tolist())
+            poly_elem2 = all_poly_dict[dst_block]#Polygon(fp_sol[dst_block - 1].tolist())
             llx2, lly2 = poly_elem2.bounds[0], poly_elem2.bounds[1]
             plt.plot(
                 (pins_pos[src_block][0], llx2),
@@ -147,13 +154,16 @@ def visualize_prime(fp_sol, b2b_connectivity, p2b_connectivity, pins_pos, placem
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys(), loc='upper right', title='Placement Constraints', fontsize=6)
-    
+    #plt.savefig('./images_prime/Layout_'+str(lind)+'.png')
+    #plt.close()
     plt.show()
 
 def visualize_placement(block_sizes,  # n_blocks x 2
                         block_xy,  # n_blocks x 2
                         pins_xy,  # n_pins x 2
                         edge_constraints,  # n_blocks x 2
+                        groups,  # n_blocks
+                        tied_ar_ids,
                         b2b_connectivity,  # n_blocks x n_blocks
                         p2b_connectivity):  # n_blocks x n_pins
 
@@ -183,8 +193,16 @@ def visualize_placement(block_sizes,  # n_blocks x 2
         w = block_sizes[bname][0]
         h = block_sizes[bname][1]
         constr_name = ID_TO_EDGE[tuple(edge_constraints[bname].numpy())]
+
+        cluster = groups[bname].item()
+        if cluster == 0:
+            hatch = {}
+        else:
+            hatch = {'hatch' : ['/', '\\', '|', '-', '+', 'x', 'o', 'O', '.', '*'][cluster-1]}
+
+        edgecolor = 'red' if tied_ar_ids[bname] else 'black'
         rect = Rectangle((x, y), w, h, fill=True,
-                         facecolor=CONSTR_TO_COLOR[constr_name], edgecolor='black')
+                         facecolor=CONSTR_TO_COLOR[constr_name], edgecolor=edgecolor,**hatch)
         ax2.add_patch(rect)
         ax2.annotate(str(bname), (x, y), color='black', fontsize=8)
 

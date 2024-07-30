@@ -63,9 +63,101 @@ def floorplan_collate(batch):
 
     fp_sol = [item['label'][0] for item in batch]
     metrics_sol = [item['label'][1] for item in batch]
+
+
+    def pad_polygons(sol):
+        # Determine the maximum number of tensors in any list
+        max_length = max(len(tensor_list) for tensor_list in sol)
+        
+        # Set target size for padding
+        target_rows = 14
+        target_cols = 2
+        
+        # List to store the padded tensors for each list
+        all_group_padded_tensors = []
     
+        # Iterate over each list of tensors in sol
+        for tensor_list in sol:
+            # List to store padded tensors within the current list
+            padded_tensors = []
+            
+            # Pad each tensor to have target_rows
+            for tensor in tensor_list:
+                # Calculate the padding required
+                pad_rows = target_rows - tensor.size(0)
+                
+                # Create the padding tuple (left, right, top, bottom)
+                pad = (0, 0, 0, pad_rows)  # (left, right, top, bottom)
+                
+                # Pad the tensor using F.pad
+                padded_tensor = F.pad(tensor, pad, value=-1)
+                
+                # Append the padded tensor to the list
+                padded_tensors.append(padded_tensor)
+            
+            # If there are fewer tensors than max_length, pad the list
+            while len(padded_tensors) < max_length:
+                # Create a tensor of size (target_rows, target_cols) filled with -1
+                empty_tensor = torch.full((target_rows, target_cols), -1)
+                padded_tensors.append(empty_tensor)
+            
+            # Stack the padded tensors for the current list
+            group_tensor = torch.stack(padded_tensors)
+            
+            # Append the group's tensor to the final list
+            all_group_padded_tensors.append(group_tensor)
+        
+        # Stack all group tensors into a single tensor
+        final_tensor = torch.stack(all_group_padded_tensors)
+        
+        return final_tensor
     
-    def pad_to_largest(tens_list):
+    # Pad polygon tensors
+    def pad_polygons_old(sol):
+        # Set the target size for padding (worst-case 14 edges)
+        target_size = (14, 2)
+        
+        # List to store the padded tensors for each group
+        group_padded_tensors = []
+        
+        # Iterate over each group of tensors in sol
+        for tensor_list in sol:
+            # List to store padded tensors within the current group
+            padded_tensors = []
+            
+            # Pad each tensor in the current group
+            for tensor in tensor_list:
+                # Calculate the required padding
+                pad_rows = target_size[0] - tensor.size(0)
+                pad_cols = target_size[1] - tensor.size(1)
+                
+                # Ensure pad_cols is zero since all have the same column size
+                assert pad_cols == 0, "Unexpected column mismatch."
+                
+                # Create the padding tuple (left, right, top, bottom)
+                pad = (0, 0, 0, pad_rows)
+                
+                # Pad the tensor using F.pad
+                padded_tensor = F.pad(tensor, pad, value=-1)
+                
+                # Append the padded tensor to the group's list
+                padded_tensors.append(padded_tensor)
+            
+            # Stack the padded tensors for the current group
+            group_tensor = torch.stack(padded_tensors)
+            
+            # Append the group's tensor to the final list
+            group_padded_tensors.append(group_tensor)
+        
+        # Stack all group tensors into a single tensor
+        stacked_tensor = torch.stack(group_padded_tensors)
+
+        return stacked_tensor
+
+
+
+    
+    def pad_inputs(tens_list):
         ndims = tens_list[0].ndim
         max_dims = [max(x.size(dim) for x in tens_list)
                     for dim in range(ndims)]
@@ -81,10 +173,10 @@ def floorplan_collate(batch):
                 F.pad(tens, padding_tuple[::-1], value=pad_value))
         return torch.stack(padded_tensors)
 
-    return list(map(pad_to_largest, (area_target, b2b_connectivity, p2b_connectivity,
-                                     pins_pos, placement_constraints))), [fp_sol, metrics_sol]
+    return list(map(pad_inputs, (area_target, b2b_connectivity, p2b_connectivity,
+                                     pins_pos, placement_constraints))), [pad_polygons(fp_sol), torch.stack(metrics_sol)]
     
-    ##list(map(pad_to_largest, (fp_sol, metrics_sol)))
+
 
 class FloorplanDataset(Dataset):
     def __init__(self, root):
@@ -92,11 +184,19 @@ class FloorplanDataset(Dataset):
             download_dataset(root)
         self.all_input_files = []
         self.all_label_files = []
-        for worker_idx in range(21, 121):
-            self.all_input_files.extend(glob.glob(os.path.join(
-                root, 'PrimeTensorData', f"config_{worker_idx}/primedata*")))
-            self.all_label_files.extend(glob.glob(os.path.join(
-                root, 'PrimeTensorData', f"config_{worker_idx}/primelabel*")))            
+        partition_range = range(21, 121) #number of partitions in prime
+        identifier_range = range(1, 11)  # Identifiers from 1 to 10
+        for worker_idx in partition_range:
+            config_dir = os.path.join(root, f'PrimeTensorData/config_{worker_idx}')
+            # Collect data files within the specified identifier range
+            for identifier in identifier_range:
+                input_file_pattern = os.path.join(config_dir, f'primedata_{identifier}.pth')
+                label_file_pattern = os.path.join(config_dir, f'primelabel_{identifier}.pth')
+                if os.path.isfile(input_file_pattern):
+                    self.all_input_files.append(input_file_pattern)
+                if os.path.isfile(label_file_pattern):
+                    self.all_label_files.append(label_file_pattern)
+                    
         self.layouts_per_file = 1000
         self.cached_file_idx = -1
 
@@ -109,7 +209,7 @@ class FloorplanDataset(Dataset):
             self.cached_input_file_contents = torch.load(self.all_input_files[file_idx])
             self.cached_label_file_contents = torch.load(self.all_label_files[file_idx])
             self.cached_file_idx = file_idx
-
+            
         area_target = self.cached_input_file_contents[layout_idx][0][:,0]
         placement_constraints = self.cached_input_file_contents[layout_idx][0][:,1:]
         b2b_connectivity = self.cached_input_file_contents[layout_idx][1]
