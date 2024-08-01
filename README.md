@@ -53,6 +53,11 @@ To load the dataset,
 
 ### Dataset Format
 
+<p align="center">
+  <img src="images/floorset_flow.png" height=300>
+</p>
+
+
 #### Inputs:
 
 - **`area_target:`**  
