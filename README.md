@@ -142,7 +142,7 @@ The directory inteltest_layouts/ contains layout images of **100 test cases** in
 
 - **Layout Images:** 
   - 100 test case images for validation
-  - Each annotated with placement constraints
+  - Partition count in the range of (20, 120]
 
 - **Optimal Metrics:** 
   - Found in [`intel_testsuite.md`](#intel_testsuite.md)
