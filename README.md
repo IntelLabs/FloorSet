@@ -19,7 +19,8 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 
 ### Example layouts from FloorSet-Prime dataset
 | ![Image 1](images/primelayout21.png) <br> An example FloorSet-Prime layout with 21 partitions | ![Image 2](images/primelayout120.png) <br> An example FloorSet-Prime layout with 120 partitions |
-|:---------------------------------------------------------------------------------:|
+|:--------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
+
 
 
 ### Example layouts from FloorSet-Lite dataset
