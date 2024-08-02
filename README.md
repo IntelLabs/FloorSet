@@ -24,8 +24,8 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 
 
 ### Example layouts from FloorSet-Lite dataset
-| ![Image 1](images/litelayout23.png) <br> An example FloorSet-Lite layout with 23 partitions | ![Image 2](images/litelayout120.png) <br> An example FloorSet-Lite layout with 120 partitions |
-|:---------------------------------------------------------------------------------:|
+| ![Image 1](images/litelayout23.png) <br> An example FloorSet-Lite layout with 21 partitions | ![Image 2](images/litelayout120.png) <br> An example FloorSet-Lite layout with 120 partitions |
+|:--------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------:|
 
 
 ### Circuit distribution
