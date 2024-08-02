@@ -112,6 +112,7 @@ To load the dataset,
 - **`sol:`**  
   `batch_size x n_blocks x vertices x 2`  
   Polygon shape of each block (target solution) containing a list of polygon vertices for each block.
+  (For FloorSet-Lite, it is batch_size x n_blocks x 4, where we provide [w, h, x, y] for each block. In addition, we also provide the corresponding B*Tree representation.)
 
 - **`metrics:`**  
   `[area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]`
