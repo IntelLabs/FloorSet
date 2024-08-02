@@ -4,6 +4,14 @@
 
 FloorSet is a dataset that contains 2 MILLION floorplan benchmark circuits. These circuits reflect real-world constraints and objectives of the Floorplanning problem at SoC and sub-system hierarchies, which is a crucial component of the physical design flow. This dataset contains synthetic fixed-outline floorplan layouts in PyTorch tensor format.
 
+
+<p align="center">
+  <img src="images/test_layouts_noconst.gif" alt="GIF 0">
+</p>
+
+
+
+
 FloorSet is composed of two datasets:
 1. **FloorSet-Prime** (1M layouts)
 2. **FloorSet-Lite** (1M layouts)
