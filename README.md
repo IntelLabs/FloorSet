@@ -156,6 +156,10 @@ The directory inteltest_layouts/ contains layout images of **100 test cases** in
 
 <img src="images/test_layouts.gif" alt="Alt Text" width="300" height="300" />
 
+| ![GIF 1](images/test_layouts.gif) | ![GIF 2](images/test_layouts_noconst.gif) |
+|:--------------------------------------------------------------------:|:--------------------------------------------------------------------:|
+| FloorSet-Prime validation benchmarks, with placements and connectivity constraints                                                  | Corresponding layouts (connectivity and placement constraints removed for better visualization)                                                    |
+
 
 ## Citation
 
