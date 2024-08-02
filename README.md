@@ -159,7 +159,7 @@ The directory inteltest_layouts/ contains layout images of **100 test cases** in
   - Located at [`data/PrimeTensorDataTest.tar.gz`](#data/PrimeTensorDataTest.tar.gz)
 
 - **Data Loader:** 
-  - Available in [`testdataloader.py`](#testdataloader.py)
+  - Available in [`testLoader.py`](#testdataloader.py)
 
 
 
