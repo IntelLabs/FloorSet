@@ -154,7 +154,7 @@ The directory inteltest_layouts/ contains layout images of **100 test cases** in
   - Available in [`testdataloader.py`](#testdataloader.py)
 
 
-<img src="images/test_layouts.gif" alt="Alt Text" width="300" height="300" />
+
 
 | ![GIF 1](images/test_layouts.gif) | ![GIF 2](images/test_layouts_noconst.gif) |
 |:--------------------------------------------------------------------:|:--------------------------------------------------------------------:|
