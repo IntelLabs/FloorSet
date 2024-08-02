@@ -22,6 +22,14 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 | ![Image 3](images/primelayout80.png) <br> An example FloorSet-Prime layout with 80 partitions | ![Image 4](images/primelayout120.png) <br> An example FloorSet-Prime layout with 120 partitions |
 
 
+
+| ![Image 1](images/litelayout23.png) <br> An example FloorSet-Lite layout with 23 partitions | ![Image 2](images/litelayout47.png) <br> An example FloorSet-Lite layout with 47 partitions |
+|:---------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------:|
+| ![Image 3](images/litelayout88.png) <br> An example FloorSet-Lite layout with 88 partitions | ![Image 4](images/litelayout120.png) <br> An example FloorSet-Lite layout with 120 partitions |
+
+
+
+
 ### Circuit distribution
 ![Image 5](images/prime_histogram.png) <br> FloorSet-Prime benchmark distribution  ![Image 6](images/lite_histogram.png) <br> FloorSet-Lite benchmark distribution 
 
