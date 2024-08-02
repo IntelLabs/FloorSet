@@ -18,17 +18,13 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 </p>
 
 ### Example layouts from FloorSet-Prime dataset
-| ![Image 1](images/primelayout21.png) <br> An example FloorSet-Prime layout with 21 partitions | ![Image 2](images/primelayout50.png) <br> An example FloorSet-Prime layout with 50 partitions |
-|:---------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------:|
-| ![Image 3](images/primelayout80.png) <br> An example FloorSet-Prime layout with 80 partitions | ![Image 4](images/primelayout120.png) <br> An example FloorSet-Prime layout with 120 partitions |
+| ![Image 1](images/primelayout21.png) <br> An example FloorSet-Prime layout with 21 partitions | ![Image 2](images/primelayout120.png) <br> An example FloorSet-Prime layout with 120 partitions |
+|:---------------------------------------------------------------------------------:|
 
 
 ### Example layouts from FloorSet-Lite dataset
-| ![Image 1](images/litelayout23.png) <br> An example FloorSet-Lite layout with 23 partitions | ![Image 2](images/litelayout47.png) <br> An example FloorSet-Lite layout with 47 partitions |
-|:---------------------------------------------------------------------------------:|:---------------------------------------------------------------------------------:|
-| ![Image 3](images/litelayout88.png) <br> An example FloorSet-Lite layout with 88 partitions | ![Image 4](images/litelayout120.png) <br> An example FloorSet-Lite layout with 120 partitions |
-
-
+| ![Image 1](images/litelayout23.png) <br> An example FloorSet-Lite layout with 23 partitions | ![Image 2](images/litelayout120.png) <br> An example FloorSet-Lite layout with 120 partitions |
+|:---------------------------------------------------------------------------------:|
 
 
 ### Circuit distribution
