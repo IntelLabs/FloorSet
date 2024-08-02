@@ -76,6 +76,93 @@ def get_hard_color(constraint):
     else:
         return colors['default']
 
+def visualize_lite(fp_sol, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints, lind=0):
+    fig, ax = plt.subplots()
+    default_color = 'silver'
+    edge_color = 'black'
+    
+    # Initialize dimensions
+    W, H = 0, 0
+    
+    # Plot floorplan solution polygons
+    all_poly_dict = {}
+    for ind, elem in enumerate(fp_sol):
+        x = elem[2]
+        y = elem[3]
+        w = elem[0]
+        h = elem[1]
+        polygon_list = [(x, y), (x+w, y), (x+w, y+h), (x, y+h), (x, y)]
+        unpadded_polygon_list = [point for point in polygon_list if point != [-1.0, -1.0]]
+        if len(unpadded_polygon_list) < 4:#ignore padded polygons that are dummy
+            continue
+        ##poly_elem = Polygon(elem.tolist())
+        poly_elem = Polygon(unpadded_polygon_list)
+        all_poly_dict[ind] = poly_elem
+        hard_const = placement_constraints[ind]
+        
+        face_color, label_text = get_hard_color(hard_const)
+        patch = patches.Polygon(
+            list(poly_elem.exterior.coords),
+            closed=True,
+            fill=True,
+            edgecolor=edge_color,
+            facecolor=face_color,
+            label=label_text,
+            alpha=0.3
+        )
+        ax.add_patch(patch)
+        
+        llx, lly = poly_elem.bounds[0], poly_elem.bounds[1]
+        urx, ury = poly_elem.bounds[2], poly_elem.bounds[3]
+        W = max(W, urx)
+        H = max(H, ury)
+        
+        ax.annotate(str(ind + 1), (llx, lly), fontsize=6)
+    
+    # Plot pin positions
+    for pname in range(pins_pos.shape[0]):
+        x, y = pins_pos[pname]
+        circ = Circle((x, y), radius=1, color='g')
+        ax.add_patch(circ)
+    
+    # Plot block-to-block (B2B) connectivity (0-index)
+    for src_block, dst_block in b2b_connectivity[:, :2]:
+        src_block, dst_block = int(src_block.item()), int(dst_block.item())
+        if src_block != -1 and dst_block != -1:
+            poly_elem1 = all_poly_dict[src_block] #Polygon(fp_sol[src_block].tolist())
+            poly_elem2 = all_poly_dict[dst_block]#Polygon(fp_sol[dst_block].tolist())
+            llx1, lly1 = poly_elem1.bounds[0], poly_elem1.bounds[1]
+            llx2, lly2 = poly_elem2.bounds[0], poly_elem2.bounds[1]
+            plt.plot((llx1, llx2), (lly1, lly2), color='r', linewidth=0.1)
+    
+    # # Plot pin-to-block (P2B) connectivity
+    for src_block, dst_block in p2b_connectivity[:, :2]:
+        src_block, dst_block = int(src_block.item()), int(dst_block.item())
+        if src_block != -1 and dst_block != -1:
+            poly_elem2 = all_poly_dict[dst_block]#Polygon(fp_sol[dst_block - 1].tolist())
+            llx2, lly2 = poly_elem2.bounds[0], poly_elem2.bounds[1]
+            plt.plot(
+                (pins_pos[src_block][0], llx2),
+                (pins_pos[src_block][1], lly2),
+                color='b',
+                linewidth=0.1
+            )
+    
+    # Set plot limits and labels
+    plt.xlim(0, W * 1.25)
+    plt.ylim(0, H * 1.25)
+    ax.set_aspect('equal', adjustable='box')
+    plt.title('Baseline Layout ' + str(lind))
+    
+    # Create legend
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), loc='upper right', title='Placement Constraints', fontsize=6)
+    #plt.savefig('./images_lite/Layout_'+str(lind)+'.png')
+    #plt.close()
+    plt.show()
+
+
 
 def visualize_prime(fp_sol, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints, lind=0):
     fig, ax = plt.subplots()

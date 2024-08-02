@@ -24,8 +24,8 @@ def decide_download(url):
 
 
 def download_dataset(root):
-    url = 'https://huggingface.co/datasets/IntelLabs/FloorSet/resolve/main/floorset_lite.tgz'
-    f_name = os.path.join(root, 'floorplan_data.tgz')
+    url = 'https://huggingface.co/datasets/IntelLabs/FloorSet/resolve/main/LiteTensorData.tar.gz'
+    f_name = os.path.join(root, 'LiteTensorData.tar.gz')
     if not os.path.exists(f_name) and decide_download(url):
         data = ur.urlopen(url)
         size = int(data.info()["Content-Length"])
@@ -69,24 +69,35 @@ class FloorplanDataset(Dataset):
     def __getitem__(self, idx):
         file_idx, layout_idx = divmod(idx, self.layouts_per_file)
         if file_idx != self.cached_file_idx:
-            self.cached_file_contents = list(
-                torch.load(self.all_files[file_idx])[0])
-            self.cached_file_contents[6] = self.cached_file_contents[6].repeat(
-                112, 1)
-            self.cached_file_contents[7] = self.cached_file_contents[6].repeat(
-                112, 1)
+            self.cached_input_file_contents = torch.load(self.all_files[file_idx])
             self.cached_file_idx = file_idx
+            self.cached_layout_idx = layout_idx
 
-        (tree_data, block_sizes_pos, pins_pos, b2b_connectivity, p2b_connectivity, edge_constraints,
-         preplaced, fixed, tied_ar_ids, group_mask) = map(lambda x: x[layout_idx], self.cached_file_contents)
+        area_target = self.cached_input_file_contents[0][layout_idx][:,0]
+        placement_constraints = self.cached_input_file_contents[0][layout_idx][:,1:]
+        b2b_connectivity = self.cached_input_file_contents[1][layout_idx]
+        p2b_connectivity = self.cached_input_file_contents[2][layout_idx]
+        pins_pos = self.cached_input_file_contents[3][layout_idx]
 
-        return (tree_data, block_sizes_pos, pins_pos, b2b_connectivity, p2b_connectivity, edge_constraints,
-                preplaced, fixed, tied_ar_ids, group_mask)
+        tree_sol = self.cached_input_file_contents[4][layout_idx]
+        fp_sol = self.cached_input_file_contents[5][layout_idx]
+        metrics_sol = self.cached_input_file_contents[6][layout_idx]
 
+        input_data = (area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints)
+        label_data = (tree_sol, fp_sol, metrics_sol)
+        sample = {'input': input_data, 'label': label_data}
+        return sample
 
-def floorplan_collate(all_fps):
-    (tree_data, block_sizes_pos, pins_pos, b2b_connectivity, p2b_connectivity, edge_constraints,
-     preplaced, fixed, tied_ar_ids, group_mask) = list(zip(*all_fps))
+def floorplan_collate(batch):
+    area_target = [item['input'][0] for item in batch]
+    b2b_connectivity = [item['input'][1] for item in batch]
+    p2b_connectivity = [item['input'][2] for item in batch]
+    pins_pos = [item['input'][3] for item in batch]
+    placement_constraints = [item['input'][4] for item in batch]
+
+    tree_sol = [item['label'][0] for item in batch] 
+    fp_sol = [item['label'][1] for item in batch]
+    metrics_sol = [item['label'][2] for item in batch]
 
     def pad_to_largest(tens_list):
 
@@ -105,5 +116,4 @@ def floorplan_collate(all_fps):
                 F.pad(tens, padding_tuple[::-1], value=pad_value))
         return torch.stack(padded_tensors)
 
-    return list(map(pad_to_largest, (tree_data, block_sizes_pos, pins_pos, b2b_connectivity, p2b_connectivity, edge_constraints,
-                                     preplaced, fixed, tied_ar_ids, group_mask)))
+    return list(map(pad_to_largest, (area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints, tree_sol, fp_sol, metrics_sol)))

@@ -42,7 +42,7 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 - **Prime Dataset:** 
   - Approximately 15 GB will be downloaded, expanding to around 25 GB when decompressed.
 - **Lite Dataset:** 
-  - Approximately 2.5 GB will be downloaded, expanding to around 8.4 GB when decompressed.
+  - Approximately 5.1 GB will be downloaded, expanding to around 8.8 GB when decompressed.
 
 
 - ** Dependencies can be installed using pip:
