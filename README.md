@@ -95,9 +95,9 @@ To load the dataset,
   `batch_size x n_blocks x 5`  
   Block-wise placement constraints [fixed, preplaced, multi-instantiation, cluster, boundary]:
   - **Fixed Flag:**  
-    0/1.
+    0/1: If 1, the shape should match the target polygon shape. Only the target polygon shape (not the location) should be inferred from the solution. Free to translate or rotate the target shape. 
   - **Preplaced Flag:**  
-    0/1.
+    0/1: If 1, the shape and location should match the target shape. The target polygon shape and location should be inferred from the solution. 
   - **Multi-instantiation Block (MIB):**  
     0 if no constraint, otherwise the index indicates the group ID that shares the shape. Each MIB group indicates instantiations of one master partition.  
     - For example, blocks with index-1 form the first MIB group, and blocks with index-2 form the second MIB group.
