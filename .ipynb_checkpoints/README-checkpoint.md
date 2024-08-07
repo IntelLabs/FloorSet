@@ -63,7 +63,7 @@ pip install -r requirements.txt
 To load the dataset, 
 1.  **Dataloader codes:** To load the datasets and iterate, use **primeloader.py** and **liteloader.py**. 
 (Avoid shuffling by setting shuffle=False in the DataLoader), as it can lead to slower data loading times)
-2.  **Validator code:** To report metrics for a floorplan solution, use *estimate_cost* in validate.py.
+2.  **Validator code:** To report metrics for a floorplan solution, use *estimate_cost* in **validate.py**.
 3.  **Wirelength and area calculation code:**   *calculate_weighted_b2b_wirelength, calculate_weighted_p2b_wirelength* in **cost.py** 
 
 ### Dataset Format
