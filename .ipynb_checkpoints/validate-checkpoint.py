@@ -11,7 +11,143 @@ from visualize import get_hard_color, visualize_prime
 
 
 from utils import normalize_polygon, polygons_have_same_shape, check_fixed_const, check_preplaced_const, check_mib_const, check_boundary_const, check_clust_const
+from cost import calculate_weighted_b2b_wirelength, calculate_weighted_p2b_wirelength
 
+##sample input for input solution tensor with 21-partitions
+"""
+[tensor([[180.,  45.],
+         [180.,  60.],
+         [186.,  60.],
+         [186.,  45.],
+         [180.,  45.]], dtype=torch.float16),
+ tensor([[180.,  75.],
+         [180., 105.],
+         [186., 105.],
+         [186.,  75.],
+         [180.,  75.]], dtype=torch.float16),
+ tensor([[150.,  30.],
+         [150.,   0.],
+         [120.,   0.],
+         [120.,  30.],
+         [150.,  30.]], dtype=torch.float16),
+ tensor([[135.,  60.],
+         [135.,  75.],
+         [186.,  75.],
+         [186.,  60.],
+         [135.,  60.]], dtype=torch.float16),
+ tensor([[ 60., 135.],
+         [ 90., 135.],
+         [ 90.,  75.],
+         [ 60.,  75.],
+         [ 60., 135.]], dtype=torch.float16),
+ tensor([[120.,  60.],
+         [120.,  75.],
+         [135.,  75.],
+         [135.,  45.],
+         [120.,  45.],
+         [120.,  60.]], dtype=torch.float16),
+ tensor([[90., 60.],
+         [90.,  0.],
+         [60.,  0.],
+         [60., 60.],
+         [90., 60.]], dtype=torch.float16),
+ tensor([[120.,  30.],
+         [120.,   0.],
+         [ 90.,   0.],
+         [ 90.,  45.],
+         [135.,  45.],
+         [135.,  60.],
+         [150.,  60.],
+         [150.,  30.],
+         [120.,  30.]], dtype=torch.float16),
+ tensor([[186.,  45.],
+         [186.,  30.],
+         [150.,  30.],
+         [150.,  60.],
+         [180.,  60.],
+         [180.,  45.],
+         [186.,  45.]], dtype=torch.float16),
+ tensor([[180.,  75.],
+         [120.,  75.],
+         [120., 105.],
+         [180., 105.],
+         [180.,  75.]], dtype=torch.float16),
+ tensor([[135., 165.],
+         [135., 135.],
+         [150., 135.],
+         [150., 105.],
+         [120., 105.],
+         [120., 165.],
+         [135., 165.]], dtype=torch.float16),
+ tensor([[  0., 186.],
+         [ 30., 186.],
+         [ 30., 135.],
+         [  0., 135.],
+         [  0., 186.]], dtype=torch.float16),
+ tensor([[150., 186.],
+         [150., 135.],
+         [135., 135.],
+         [135., 165.],
+         [120., 165.],
+         [120., 186.],
+         [150., 186.]], dtype=torch.float16),
+ tensor([[150.,  30.],
+         [186.,  30.],
+         [186.,   0.],
+         [150.,   0.],
+         [150.,  30.]], dtype=torch.float16),
+ tensor([[ 60.,  75.],
+         [ 30.,  75.],
+         [ 30.,  60.],
+         [  0.,  60.],
+         [  0., 105.],
+         [ 60., 105.],
+         [ 60.,  75.]], dtype=torch.float16),
+ tensor([[60.,  0.],
+         [ 0.,  0.],
+         [ 0., 30.],
+         [60., 30.],
+         [60.,  0.]], dtype=torch.float16),
+ tensor([[45., 45.],
+         [60., 45.],
+         [60., 30.],
+         [ 0., 30.],
+         [ 0., 60.],
+         [30., 60.],
+         [30., 75.],
+         [45., 75.],
+         [45., 45.]], dtype=torch.float16),
+ tensor([[60., 75.],
+         [90., 75.],
+         [90., 60.],
+         [60., 60.],
+         [60., 45.],
+         [45., 45.],
+         [45., 75.],
+         [60., 75.]], dtype=torch.float16),
+ tensor([[ 45., 105.],
+         [  0., 105.],
+         [  0., 135.],
+         [ 30., 135.],
+         [ 30., 186.],
+         [ 45., 186.],
+         [ 45., 105.]], dtype=torch.float16),
+ tensor([[180., 186.],
+         [186., 186.],
+         [186., 105.],
+         [150., 105.],
+         [150., 186.],
+         [180., 186.]], dtype=torch.float16),
+ tensor([[ 45., 186.],
+         [120., 186.],
+         [120.,  45.],
+         [ 90.,  45.],
+         [ 90., 135.],
+         [ 60., 135.],
+         [ 60., 105.],
+         [ 45., 105.],
+         [ 45., 186.]], dtype=torch.float16)] 
+"""
 
 
 
@@ -88,74 +224,37 @@ def estimate_cost(bdata: list, layout_index: int):
     clust_const = target_constraints[:, 3]
     bound_const = target_constraints[:, 4]
 
-    fixed_viol = check_fixed_const(torch.nonzero(fixed_const), fp_sol, target_sol)
-    preplaced_viol = check_preplaced_const(torch.nonzero(preplaced_const), fp_sol, target_sol)
-    mib_viol = check_mib_const(mib_const, fp_sol, target_sol)
-    clust_viol = check_clust_const(clust_const, fp_sol, target_sol)
-    boundary_viol = check_boundary_const(bound_const, fp_sol, target_sol, W, H)
+    # Prepare the output dictionary
+    results = {
+        'placement_constraints': {
+            'fixed': 0,
+            'preplaced': 0,
+            'mib': 0,
+            'cluster': 0,
+            'boundary': 0
+        },
+        'wl_difference': {
+            'b2b': sol_b2b_wl - target_b2b_wl,
+            'p2b': sol_p2b_wl - target_p2b_wl
+        },
+        'layout_area_difference': sol_area_cost - target_layout_area,
+        'partition_indices_with_area_violations': area_viol.tolist()
+    }
 
-    
-    print('Placement constraints: viol count (fixed/preplaced/mib/cluster/boundary)::', fixed_viol, preplaced_viol, mib_viol, clust_viol, boundary_viol)
-    print('WL difference (B2B and P2B):', sol_b2b_wl - target_b2b_wl, sol_p2b_wl - target_p2b_wl)
-    print('Layout area difference:', sol_area_cost - target_layout_area)
-    print('Partition indices with target-area-budget violations:', area_viol.tolist())
-    
-
-def calculate_weighted_b2b_wirelength(
-    centroids: torch.Tensor, b2b_edges: torch.Tensor
-) -> float:
-    """
-    Calculate the weighted HPWL for block-to-block edges.
-
-    Args:
-        centroids (torch.Tensor): The centroids of polygons.
-        b2b_edges (torch.Tensor): The block-to-block edges tensor.
-
-    Returns:
-        float: The weighted Manhattan distance.
-    """
-    b2b_indices_0 = b2b_edges[:, 0].long()
-    b2b_indices_1 = b2b_edges[:, 1].long()
-
-    b2b_weights = (
-        b2b_edges[:, 2]
-        if b2b_edges.shape[1] > 2
-        else torch.ones(b2b_edges.shape[0])
+    results['placement_constraints']['fixed'] = check_fixed_const(
+        torch.nonzero(fixed_const), fp_sol, target_sol
+    )
+    results['placement_constraints']['preplaced'] = check_preplaced_const(
+        torch.nonzero(preplaced_const), fp_sol, target_sol
+    )
+    results['placement_constraints']['mib'] = check_mib_const(
+        mib_const, fp_sol, target_sol
+    )
+    results['placement_constraints']['cluster'] = check_clust_const(
+        clust_const, fp_sol, target_sol
+    )
+    results['placement_constraints']['boundary'] = check_boundary_const(
+        bound_const, fp_sol, target_sol, W, H
     )
 
-    diff_x_b2b = torch.abs(centroids[b2b_indices_1, 0] - centroids[b2b_indices_0, 0])
-    diff_y_b2b = torch.abs(centroids[b2b_indices_1, 1] - centroids[b2b_indices_0, 1])
-
-    return torch.sum((diff_x_b2b + diff_y_b2b) * b2b_weights).item()
-
-
-def calculate_weighted_p2b_wirelength(
-    centroids: torch.Tensor, p2b_edges: torch.Tensor, pins_pos: torch.Tensor
-) -> float:
-    """
-    Calculate weighted HPWL for pin-to-block edges.
-
-    Args:
-        centroids (torch.Tensor): The centroids of polygons.
-        p2b_edges (torch.Tensor): The pin-to-block edges tensor.
-        pins_pos (torch.Tensor): The positions of pins.
-
-    Returns:
-        float: The weighted Manhattan distance for pin-to-block edges.
-    """
-    p2b_indices_0 = p2b_edges[:, 0].long()
-    p2b_indices_1 = p2b_edges[:, 1].long()
-
-    p2b_weights = (
-        p2b_edges[:, 2]
-        if p2b_edges.shape[1] > 2
-        else torch.ones(p2b_edges.shape[0])
-    )
-
-    px_py = pins_pos[p2b_indices_0]
-    px, py = px_py[:, 0], px_py[:, 1]
-
-    diff_x_p2b = torch.abs(centroids[p2b_indices_1, 0] - px)
-    diff_y_p2b = torch.abs(centroids[p2b_indices_1, 1] - py)
-
-    return torch.sum((diff_x_p2b + diff_y_p2b) * p2b_weights).item()
+    return results
