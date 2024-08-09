@@ -14,7 +14,7 @@ FloorSet contains 2 MILLION floorplan benchmark circuits. These circuits reflect
 
 FloorSet is composed of two datasets:
 1. **FloorSet-Prime** (1M layouts)
-2. **FloorSet-Lite** (1M layouts)
+2. **FloorSet-Lite** (1M layouts, low-complexity)
 
 *Each dataset includes 1M training samples, with hard constraints seen in modern design flows such as shape constraints, boundary constraints, grouping constraints, multi-instantiation blocks, fixed and pre-placement constraints. We also propose 100 testcases for the purpose of validating floorplanning algorithms.* 
 
