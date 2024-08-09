@@ -10,7 +10,64 @@ from prime_dataset import FloorplanDataset, floorplan_collate
 from visualize import get_hard_color, visualize_prime
 
 
+def unpad_tensor(tensor):
+    mask = (tensor != -1.0)
+
+    # Step 2: Identify rows where all elements are not -1.0
+    valid_rows_mask = mask.all(dim=1)
+
+    # Step 3: Use the mask to filter the tensor, keeping only valid rows
+    unpadded_tensor = tensor[valid_rows_mask]
+    return unpadded_tensor
+
+def calculate_difference_with_tolerance(sol, target, tol=0.01):
+    """
+    Calculate the difference between two scalars with a given tolerance.
+
+    Parameters:
+    sol (float): The solution value.
+    target (float): The target value.
+    tol (float): The tolerance level.
+
+    Returns:
+    float: Adjusted difference considering the tolerance.
+    """
+    difference = sol - target
+    return 0 if abs(difference) < tol else difference
+
 def normalize_polygon(polygon: Polygon) -> Polygon:
+    """
+    Normalize a polygon by translating its minimum bounding box to the origin and rotating it
+    to align with the axes.
+
+    Args:
+        polygon (Polygon): The input Shapely polygon to be normalized.
+
+    Returns:
+        Polygon: The normalized polygon.
+    """
+    # Get the minimum oriented bounding box
+    bbox = polygon.minimum_rotated_rectangle
+    bbox_coords = list(bbox.exterior.coords)[:-1]  # Exclude the repeated last point
+
+    # Find the minimum x and y coordinates of the bounding box
+    min_x = min(coord[0] for coord in bbox_coords)
+    min_y = min(coord[1] for coord in bbox_coords)
+
+    # Translate polygon to the origin
+    translated_polygon = translate(polygon, xoff=-min_x, yoff=-min_y)
+
+    # Get the oriented bounding box again after translation
+    bbox = translated_polygon.minimum_rotated_rectangle
+    bbox_coords = list(bbox.exterior.coords)[:-1]
+
+    # Calculate the angle to align the bounding box with the axes
+    angle = np.arctan2(bbox_coords[1][1] - bbox_coords[0][1], bbox_coords[1][0] - bbox_coords[0][0])
+    aligned_polygon = rotate(translated_polygon, -np.degrees(angle), origin='centroid')
+
+    return aligned_polygon
+
+def normalize_centroid_based(polygon: Polygon) -> Polygon:
     """
     Normalize a polygon by translating its centroid to the origin and rotating
     it to a canonical orientation.

@@ -9,9 +9,10 @@ from shapely.ops import unary_union
 from prime_dataset import FloorplanDataset, floorplan_collate
 from visualize import get_hard_color, visualize_prime
 
-
+from utils import unpad_tensor, calculate_difference_with_tolerance
 from utils import normalize_polygon, polygons_have_same_shape, check_fixed_const, check_preplaced_const, check_mib_const, check_boundary_const, check_clust_const
-from cost import calculate_weighted_b2b_wirelength, calculate_weighted_p2b_wirelength
+from cost import calculate_weighted_b2b_wirelength, calculate_weighted_p2b_wirelength, estimate_cost
+
 
 ##sample input for input solution tensor with 21-partitions
 """
@@ -151,110 +152,33 @@ from cost import calculate_weighted_b2b_wirelength, calculate_weighted_p2b_wirel
 
 
 
-def estimate_cost(bdata: list, layout_index: int):
-    """
-    Estimate the cost of a layout by evaluating area and wirelength violations.
+from tqdm import tqdm
+import itertools
+root = './'
+ds = FloorplanDataset(root)
+place_viol = 0
 
-    Args:
-        bdata (list): The block data containing polygon coordinates.
-        layout_index (int): The index of the layout to evaluate.
-    """
-    # Read baseline design
-    root = './'
-    ds = FloorplanDataset(root)
-    target_data = ds.__getitem__(layout_index)
+dl = DataLoader(
+    ds, 
+    batch_size=100, 
+    shuffle=False,
+    collate_fn=floorplan_collate
+)
 
-    target_area_budgets = target_data['input'][0]
-    target_b2b_edges = target_data['input'][1]
-    target_p2b_edges = target_data['input'][2]
-    target_pins_pos = target_data['input'][3]
-    target_constraints = target_data['input'][4]
-    target_metrics = target_data['label'][1]
-    target_poly = target_data['label'][0]
+# example to estimate cost of training data, by iterating over the dataloader
+for batch_idx, batch in tqdm(enumerate(dl), total=len(dl), desc='Processing FloorSet-Prime Batches'):
+  
+    area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints = batch[0]
+    sol, metrics = batch[1]
 
-    target_b2b_wl = target_metrics[-2].item()
-    target_p2b_wl = target_metrics[-1].item()
-    target_layout_area = target_metrics[0].item()
+    for bind in range(sol.shape[0]):
+        test_layout = sol[bind]##needs to be modified by predicted solution 
+        
+        result = estimate_cost(test_layout, area_target[bind], b2b_connectivity[bind], p2b_connectivity[bind], pins_pos[bind], 
+                               placement_constraints[bind], sol[bind], metrics[bind])
+        
 
-    if len(bdata) != len(target_poly):
-        print('ERROR: incorrect number of polygons in the solution')
-        exit()
+        print(result)
+        break
+    break
 
-    # Estimate area and validate target area budgets
-    target_sol = [Polygon(targ_poly.tolist()) for targ_poly in target_poly]
-
-    sol_area_budgets = torch.zeros_like(target_area_budgets)
-    fp_sol = []
-    W, H = 0, 0
-    min_x, min_y, max_x, max_y = float('inf'), float('inf'), 0, 0
-
-    for ind, elem in enumerate(bdata):
-        poly_elem = Polygon(elem.tolist())
-        sol_area_budgets[ind] = poly_elem.area
-        fp_sol.append(poly_elem)
-
-        min_x, min_y, max_x, max_y = poly_elem.bounds
-        W = max(W, max_x)
-        H = max(H, max_y)
-
-    sol_area_cost = float(W * H)
-    delta_budgets = sol_area_budgets - target_area_budgets
-    area_viol = torch.nonzero(delta_budgets < 0).squeeze()
-
-    # Estimate wirelength
-    centroids = torch.tensor(
-        [list(Polygon(fp_sol[i]).centroid.coords[0]) for i in range(len(fp_sol))],
-        dtype=torch.float32,
-    )
-
-    sol_b2b_wl = calculate_weighted_manhattan_distance(
-        centroids, target_b2b_edges
-    )
-
-    sol_p2b_wl = calculate_pin_wirelength(
-        centroids, target_p2b_edges, target_pins_pos
-    )
-
-
-
-    # Estimate constraint cost
-    fixed_const = target_constraints[:, 0]
-    preplaced_const = target_constraints[:, 1]
-    mib_const = target_constraints[:, 2]
-    clust_const = target_constraints[:, 3]
-    bound_const = target_constraints[:, 4]
-
-    # Prepare the output dictionary
-    results = {
-        'placement_constraints': {
-            'fixed': 0,
-            'preplaced': 0,
-            'mib': 0,
-            'cluster': 0,
-            'boundary': 0
-        },
-        'wl_difference': {
-            'b2b': sol_b2b_wl - target_b2b_wl,
-            'p2b': sol_p2b_wl - target_p2b_wl
-        },
-        'layout_area_difference': sol_area_cost - target_layout_area,
-        'partition_indices_with_area_violations': area_viol.tolist()
-    }
-
-    results['placement_constraints']['fixed'] = check_fixed_const(
-        torch.nonzero(fixed_const), fp_sol, target_sol
-    )
-    results['placement_constraints']['preplaced'] = check_preplaced_const(
-        torch.nonzero(preplaced_const), fp_sol, target_sol
-    )
-    results['placement_constraints']['mib'] = check_mib_const(
-        mib_const, fp_sol, target_sol
-    )
-    results['placement_constraints']['cluster'] = check_clust_const(
-        clust_const, fp_sol, target_sol
-    )
-    results['placement_constraints']['boundary'] = check_boundary_const(
-        bound_const, fp_sol, target_sol, W, H
-    )
-
-    return results
