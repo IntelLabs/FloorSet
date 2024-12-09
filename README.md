@@ -48,7 +48,7 @@ FloorSet is intended to spur fundamental research on large-scale constrained opt
 - **Prime Dataset:** 
   - Approximately 15 GB will be downloaded, expanding to around 25 GB when decompressed.
 - **Lite Dataset:** 
-  - Approximately 5.1 GB will be downloaded, expanding to around 8.8 GB when decompressed.
+  - Approximately 6.1 GB will be downloaded, expanding to around 9.5 GB when decompressed.
 
 
 - ** Dependencies can be installed using pip:
@@ -61,7 +61,7 @@ pip install -r requirements.txt
 ## Loading the data
 
 To load the dataset, 
-1.  **Dataloader codes:** To load the datasets and iterate, use **primeloader.py** and **liteloader.py**. 
+1.  **Dataloader codes:** To load the datasets and iterate, use **primeLoader.py** and **liteLoader.py**. 
 (Avoid shuffling by setting shuffle=False in the DataLoader), as it can lead to slower data loading times)
 2.  **Validator code:** To report metrics for a floorplan solution, use *estimate_cost* in **validate.py**.
 3.  **Wirelength and area calculation code:**   *calculate_weighted_b2b_wirelength, calculate_weighted_p2b_wirelength* in **cost.py** 
@@ -142,9 +142,22 @@ To load the dataset,
     Pin-block weighted wirelength (center-center Manhattan distance of the net * weight of the net).
 
 
-## Intel test dataset (100 testcases with known-optimal metrics)
+## Intel Test Dataset
 
-The directory inteltest_layouts/ contains layout images of **100 test cases** intended for validation. Each test case is annotated with placement constraints, and the optimal metrics for each are documented in the [`intel_testsuite.md`](#intel_testsuite.md) file located in the main repository.
+This repository includes a comprehensive Intel test dataset consisting of **200 static test circuits**—**100 FloorSet-Prime test cases** and **100 FloorSet-Lite test cases**—alongside **2 million training samples**. The purpose of this test dataset is to establish a standard validation protocol that is reproducible. To recap, FloorSet-Lite has "rectangular-only" partitions. 
+
+### Dataset Details
+
+- **Test Cases**: Each test case is annotated with placement constraints.
+- **Optimal Metrics**: The optimal metrics for each test case are documented in the following files:
+  - [`intel_testsuite.md`](./intel_testsuite.md)
+  - [`intel_testsuite_lite.md`](./intel_testsuite_lite.md)
+
+### Dataloaders
+
+The dataloaders for these test circuits are implemented in the following Python scripts:
+- `primetestLoader.py`
+- `litetestLoader.py`
 
 ### Contents
 
