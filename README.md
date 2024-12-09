@@ -142,9 +142,24 @@ To load the dataset,
     Pin-block weighted wirelength (center-center Manhattan distance of the net * weight of the net).
 
 
-## Intel test dataset (100 testcases with known-optimal metrics)
+## Intel Test Dataset
 
-The directory inteltest_layouts/ contains layout images of **100 test cases** intended for validation. Each test case is annotated with placement constraints, and the optimal metrics for each are documented in the [`intel_testsuite.md`](#intel_testsuite.md) file located in the main repository.
+This repository includes a comprehensive Intel test dataset consisting of **200 static test circuits**—**100 FloorSet-Prime test cases** and **100 FloorSetLite test cases**—in addition to the **2 million training samples**. The purpose of these 200 test circuits is to establish a standard validation protocol that is reproducible.
+
+### Dataset Details
+
+- **Test Cases**: Each test case is annotated with specific placement constraints.
+- **Optimal Metrics**: The optimal metrics for each test case are documented in the following files:
+  - [`intel_testsuite.md`](./intel_testsuite.md)
+  - [`intel_testsuite_lite.md`](./intel_testsuite_lite.md)
+
+### Dataloaders
+
+The dataloaders for these test circuits are implemented in the following Python scripts:
+- `primetestLoader.py`
+- `litetestLoader.py`
+
+These scripts facilitate the loading and processing of the test circuits for validation purposes.
 
 ### Contents
 
