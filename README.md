@@ -159,22 +159,6 @@ The dataloaders for these test circuits are implemented in the following Python 
 - `primetestLoader.py`
 - `litetestLoader.py`
 
-### Contents
-
-- **Layout Images:** 
-  - 100 test case images for validation
-  - Partition count in the range of (20, 120]
-
-- **Optimal Metrics and design attributes:** 
-  - Found in [`intel_testsuite.md`](#intel_testsuite.md)
-
-- **Test Dataset:** 
-  - Located at [`data/PrimeTensorDataTest.tar.gz`](#data/PrimeTensorDataTest.tar.gz)
-
-- **Data Loader:** 
-  - Available in [`testLoader.py`](#testdataloader.py)
-
-
 
 
 | ![GIF 1](images/test_layouts.gif) | ![GIF 2](images/test_layouts_noconst.gif) |
