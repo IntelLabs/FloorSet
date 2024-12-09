@@ -6,7 +6,7 @@
 
 import torch
 from torch.utils.data import DataLoader
-from prime_dataset import FloorplanDataset, floorplan_collate
+from prime_dataset import FloorplanDatasetPrime, floorplan_collate
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Patch, Circle
 import matplotlib.patches as patches
@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 def main():
     root = './'
-    ds = FloorplanDataset(root)
+    ds = FloorplanDatasetPrime(root)
     
     # Create DataLoader with no shuffling for effective file caching
     dl = DataLoader(
