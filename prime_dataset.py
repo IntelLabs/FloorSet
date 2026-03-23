@@ -225,3 +225,6 @@ class FloorplanDatasetPrime(Dataset):
         sample = {'input': input_data, 'label': label_data}
         return sample
         #return (area_target, b2b_connectivity, p2b_connectivity, pins_pos, placement_constraints)
+
+# Alias for backwards compatibility
+FloorplanDataset = FloorplanDatasetPrime
