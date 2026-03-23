@@ -1,5 +1,26 @@
 # FloorSet - a VLSI Floorplanning Dataset with Design Constraints of Real-World SoCs
 
+## ICCAD 2026 Contest
+
+FloorSet is the basis for the **ICCAD 2026 CAD Contest Problem B: ML-Driven Floorplanning**.
+
+**Contest webpage:** https://www.iccad-contest.org/Problems.html
+
+The contest infrastructure is in the [`iccad2026contest/`](./iccad2026contest/) directory:
+- `iccad2026_evaluate.py` - Evaluation and scoring framework
+- `optimizer_template.py` - B*-tree SA baseline (contestants replace this)
+- `training_example.py` - Training data usage example
+- `README.md` - Getting started guide
+
+```bash
+cd iccad2026contest/
+cp optimizer_template.py my_optimizer.py
+# Implement your algorithm in my_optimizer.py
+python iccad2026_evaluate.py --evaluate my_optimizer.py
+```
+
+---
+
 ## Overview 
 
 FloorSet contains 2 MILLION floorplan benchmark circuits. These circuits reflect real-world constraints and objectives of the Floorplanning problem at SoC and sub-system hierarchies, which is a crucial component of the physical design flow. This dataset contains synthetic fixed-outline floorplan layouts in PyTorch tensor format.
