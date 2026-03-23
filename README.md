@@ -2,7 +2,7 @@
 
 ## ICCAD 2026 Contest
 
-FloorSet is the basis for the **ICCAD 2026 CAD Contest Problem B: ML-Driven Floorplanning**.
+FloorSet is the basis for the **ICCAD 2026 CAD Contest Problem C, The FloorSet Challenge: Data-Driven SoC Floorplanning**.
 
 **Contest webpage:** https://www.iccad-contest.org/Problems.html
 
