@@ -42,11 +42,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from litetestLoader import FloorplanDatasetLiteTest, floorplan_collate
 from liteLoader import FloorplanDatasetLite  # Training data (1M samples)
 from cost import calculate_weighted_b2b_wirelength, calculate_weighted_p2b_wirelength
-from validate import (
+from utils import (
+    unpad_tensor,
     check_fixed_const, check_preplaced_const, check_mib_const,
     check_clust_const, check_boundary_const
 )
-from utils import unpad_tensor
 
 try:
     from shapely.geometry import Polygon, box
@@ -580,7 +580,8 @@ class ContestEvaluator:
         
         for idx in iterator:
             try:
-                inputs, labels = self.dataset[idx]
+                sample = self.dataset[idx]
+                inputs, labels = sample['input'], sample['label']
                 area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
                 block_count = int((area_target != -1).sum().item())
                 
@@ -758,7 +759,8 @@ def generate_baselines(data_path: str = "../", output_path: str = None,
     iterator = tqdm(range(len(dataset)), desc="Processing") if verbose else range(len(dataset))
     
     for idx in iterator:
-        inputs, labels = dataset[idx]
+        sample = dataset[idx]
+        inputs, labels = sample['input'], sample['label']
         area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
         polygons, metrics = labels
         
@@ -1007,7 +1009,8 @@ def explore_training_data(
     indices = random.sample(range(len(dataset)), min(num_samples, len(dataset)))
     
     for idx in indices:
-        inputs, labels = dataset[idx]
+        sample = dataset[idx]
+        inputs, labels = sample['input'], sample['label']
         area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
         polygons, metrics = labels
         
@@ -1056,7 +1059,8 @@ def visualize_test_case(test_id: int, data_path: str = "../",
         return
     
     dataset = FloorplanDatasetLiteTest(data_path)
-    inputs, labels = dataset[test_id]
+    sample = dataset[test_id]
+    inputs, labels = sample['input'], sample['label']
     area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
     polygons, metrics = labels
     
@@ -1139,7 +1143,8 @@ def score_saved_solutions(
         block_count = sol['block_count']
         
         # Load test case data
-        inputs, labels = dataset[test_id]
+        sample = dataset[test_id]
+        inputs, labels = sample['input'], sample['label']
         area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
         polygons, metrics = labels
         

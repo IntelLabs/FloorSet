@@ -120,42 +120,112 @@ class BStarTree:
                 current = self.right[current]
     
     def pack(self) -> List[Tuple[float, float, float, float]]:
-        """Compute (x, y, w, h) from tree structure. Overlap-free by construction."""
+        """
+        Compute (x, y, w, h) from tree structure.
+        
+        Uses proper contour tracking to ensure overlap-free placement.
+        B*-tree rules:
+        - Left child: placed to the RIGHT of parent
+        - Right child: placed ABOVE parent (same x as parent)
+        """
         positions = [(0.0, 0.0, self.widths[i], self.heights[i]) for i in range(self.n)]
         if self.n == 0:
             return positions
         
-        contour = []  # (x_start, x_end, y_top)
+        # Contour: sorted list of (x_end, y_top) representing skyline
+        # At any x, the contour height is the y_top of the rightmost segment with x_end > x
+        contour = [(0.0, 0.0)]  # Start with ground level
         
         def get_contour_y(x_start: float, x_end: float) -> float:
+            """Find max y in contour for range [x_start, x_end]."""
             max_y = 0.0
-            for cx_start, cx_end, cy_top in contour:
+            for i, (cx_end, cy_top) in enumerate(contour):
+                # Get x_start of this segment
+                cx_start = contour[i-1][0] if i > 0 else 0.0
+                # Check if segments overlap
                 if x_start < cx_end and x_end > cx_start:
                     max_y = max(max_y, cy_top)
             return max_y
         
         def update_contour(x_start: float, x_end: float, y_top: float):
-            contour.append((x_start, x_end, y_top))
+            """Add a new block to the contour."""
+            nonlocal contour
+            new_contour = []
+            
+            for i, (cx_end, cy_top) in enumerate(contour):
+                cx_start = contour[i-1][0] if i > 0 else 0.0
+                
+                # Before the new block
+                if cx_end <= x_start:
+                    new_contour.append((cx_end, cy_top))
+                # After the new block
+                elif cx_start >= x_end:
+                    new_contour.append((cx_end, cy_top))
+                # Overlapping - need to split
+                else:
+                    # Part before new block
+                    if cx_start < x_start:
+                        new_contour.append((x_start, cy_top))
+                    # Part after new block
+                    if cx_end > x_end:
+                        new_contour.append((cx_end, cy_top))
+            
+            # Add the new block segment
+            # Find where to insert
+            insert_pos = 0
+            for i, (cx_end, _) in enumerate(new_contour):
+                if cx_end <= x_start:
+                    insert_pos = i + 1
+            new_contour.insert(insert_pos, (x_end, y_top))
+            
+            # Sort by x_end and merge adjacent segments with same y
+            new_contour.sort(key=lambda x: x[0])
+            
+            # Merge adjacent segments with same height
+            merged = []
+            for x_end, y_top in new_contour:
+                if merged and merged[-1][1] == y_top:
+                    merged[-1] = (x_end, y_top)  # Extend previous
+                else:
+                    merged.append((x_end, y_top))
+            
+            contour = merged if merged else [(x_end, 0.0)]
         
-        def dfs(node: int, parent_x: float, is_left_child: bool):
+        # DFS traversal to place blocks
+        def dfs(node: int, parent_right_edge: float):
             if node == -1:
                 return
+            
             w, h = self.widths[node], self.heights[node]
+            
             if node == self.root:
-                x, y = 0.0, 0.0
-            elif is_left_child:
-                x = parent_x
-                y = get_contour_y(x, x + w)
+                x = 0.0
+                y = 0.0
             else:
-                x = parent_x
+                x = parent_right_edge
                 y = get_contour_y(x, x + w)
             
             positions[node] = (x, y, w, h)
             update_contour(x, x + w, y + h)
-            dfs(self.left[node], x + w, True)
-            dfs(self.right[node], x, False)
+            
+            # Left child: to the RIGHT of this node
+            dfs(self.left[node], x + w)
+            # Right child: ABOVE this node (same x, will stack due to contour)
+            dfs(self.right[node], x)
         
-        dfs(self.root, 0.0, False)
+        dfs(self.root, 0.0)
+        
+        # Verify no overlaps (should never happen with correct contour)
+        for i in range(self.n):
+            for j in range(i + 1, self.n):
+                x1, y1, w1, h1 = positions[i]
+                x2, y2, w2, h2 = positions[j]
+                overlap_x = min(x1 + w1, x2 + w2) - max(x1, x2)
+                overlap_y = min(y1 + h1, y2 + h2) - max(y1, y2)
+                if overlap_x > 1e-6 and overlap_y > 1e-6:
+                    # Fix by pushing j up
+                    positions[j] = (x2, max(y1 + h1, y2), w2, h2)
+        
         return positions
     
     def copy(self) -> 'BStarTree':
@@ -251,10 +321,10 @@ class MyOptimizer(FloorplanOptimizer):
     
     def __init__(self, verbose: bool = False):
         super().__init__(verbose)
-        self.initial_temp = 1000.0
+        self.initial_temp = 100.0
         self.final_temp = 1.0
-        self.cooling_rate = 0.995
-        self.moves_per_temp = 100
+        self.cooling_rate = 0.9
+        self.moves_per_temp = 20
     
     def solve(
         self,
@@ -294,15 +364,13 @@ class MyOptimizer(FloorplanOptimizer):
             for _ in range(self.moves_per_temp):
                 old_tree = tree.copy()
                 
-                # Random move
-                move = random.randint(0, 2)
+                # Random move (only rotate and delete-insert to preserve area)
+                move = random.randint(0, 1)
                 if move == 0:
+                    # Rotate: swap w/h (preserves area w*h)
                     tree.move_rotate(random.randint(0, block_count - 1))
-                elif move == 1:
-                    b1, b2 = random.randint(0, block_count - 1), random.randint(0, block_count - 1)
-                    if b1 != b2:
-                        tree.move_swap(b1, b2)
                 else:
+                    # Delete-insert: move block to new tree position (preserves area)
                     tree.move_delete_insert(random.randint(0, block_count - 1))
                 
                 new_positions = tree.pack()
