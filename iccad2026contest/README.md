@@ -3,6 +3,9 @@
 ## Getting Started
 
 ```bash
+# 0. Install dependencies
+pip install -r requirements.txt
+
 # 1. Copy the template
 cp optimizer_template.py my_optimizer.py
 
