@@ -45,6 +45,11 @@ Your optimizer will receive:
 
 Your optimizer must return:
   - List of (x, y, width, height) tuples, one per block
+  - MUST return exactly `block_count` tuples
+
+HARD CONSTRAINTS (violation = infeasible, Cost = 10.0):
+  - NO OVERLAPS: Blocks cannot overlap (touching edges OK)
+  - AREA TOLERANCE: Block area (w × h) must be within 1% of area_targets[i]
 """
 
 import math
@@ -96,7 +101,20 @@ class MyOptimizer(FloorplanOptimizer):
         """
         YOUR ALGORITHM GOES HERE
         
-        Returns: List of (x, y, width, height) for each block
+        Args:
+            block_count: Number of blocks (21-120)
+            area_targets: [n_blocks] target area for each block
+            b2b_connectivity: [n_edges, 3] block-to-block edges (i, j, weight)
+            p2b_connectivity: [n_edges, 3] pin-to-block edges (pin, block, weight)
+            pins_pos: [n_pins, 2] pin (x, y) positions
+            constraints: [n_blocks, 5] constraint flags per block
+        
+        Returns:
+            List of exactly `block_count` tuples: [(x, y, width, height), ...]
+        
+        HARD CONSTRAINTS (violation = Cost 10.0):
+            - NO OVERLAPS between blocks (touching edges OK)
+            - AREA: w*h must be within 1% of area_targets[i]
         """
         
         # =====================================================================
