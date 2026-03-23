@@ -5,17 +5,17 @@ ICCAD 2026 FloorSet Challenge - Contest Framework
 Unified contest framework with all functionality accessible via switches.
 
 Usage:
-    python contest.py --evaluate my_optimizer.py         # Evaluate optimizer
-    python contest.py --validate my_optimizer.py         # Validate submission
-    python contest.py --baseline                         # Generate baseline metrics
-    python contest.py --score solution.json              # Score a solution file
-    python contest.py --visualize --test-id 0            # Visualize test case
-    python contest.py --info                             # Show contest info
+    python iccad2026_evaluate.py --evaluate my_optimizer.py         # Evaluate optimizer
+    python iccad2026_evaluate.py --validate my_optimizer.py         # Validate submission
+    python iccad2026_evaluate.py --baseline                         # Generate baseline metrics
+    python iccad2026_evaluate.py --score solution.json              # Score a solution file
+    python iccad2026_evaluate.py --visualize --test-id 0            # Visualize test case
+    python iccad2026_evaluate.py --info                             # Show contest info
 
 Examples:
-    python contest.py --evaluate my_optimizer.py --test-id 0 --verbose
-    python contest.py --baseline --output baselines.json
-    python contest.py --validate my_optimizer.py --quick
+    python iccad2026_evaluate.py --evaluate my_optimizer.py --test-id 0 --verbose
+    python iccad2026_evaluate.py --baseline --output baselines.json
+    python iccad2026_evaluate.py --validate my_optimizer.py --quick
 """
 
 import argparse
@@ -1248,10 +1248,10 @@ def print_contest_info():
 ║    --info                    Show this information               ║
 ║                                                                  ║
 ║  EXAMPLES:                                                       ║
-║    python contest.py --evaluate my_opt.py --verbose              ║
-║    python contest.py --validate my_opt.py --quick                ║
-║    python contest.py --evaluate my_opt.py --test-id 0            ║
-║    python contest.py --training                                  ║
+║    python iccad2026_evaluate.py --evaluate my_opt.py --verbose              ║
+║    python iccad2026_evaluate.py --validate my_opt.py --quick                ║
+║    python iccad2026_evaluate.py --evaluate my_opt.py --test-id 0            ║
+║    python iccad2026_evaluate.py --training                                  ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
 """)

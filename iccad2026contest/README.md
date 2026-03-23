@@ -9,10 +9,10 @@ cp optimizer_template.py my_optimizer.py
 # 2. Implement your algorithm in my_optimizer.py (edit the solve() method)
 
 # 3. Evaluate on all 100 test cases
-python contest.py --evaluate my_optimizer.py
+python iccad2026_evaluate.py --evaluate my_optimizer.py
 
 # 4. Validate before submission
-python contest.py --validate my_optimizer.py
+python iccad2026_evaluate.py --validate my_optimizer.py
 ```
 
 ---
@@ -45,8 +45,13 @@ def solve(self, block_count, area_targets, b2b_connectivity,
 
 ## Using Training Data (1M samples)
 
+```bash
+# See full example
+python training_example.py
+```
+
 ```python
-from contest import get_training_dataloader, compute_training_loss
+from iccad2026_evaluate import get_training_dataloader, compute_training_loss
 
 dataloader = get_training_dataloader(batch_size=64, num_samples=10000)
 
@@ -67,11 +72,11 @@ for inputs, labels in dataloader:
 
 ```bash
 # Run optimizer and save solutions to JSON
-python contest.py --evaluate my_optimizer.py --save-solutions
+python iccad2026_evaluate.py --evaluate my_optimizer.py --save-solutions
 # Output: my_optimizer_solutions.json
 
 # Re-score saved solutions (without re-running optimizer)
-python contest.py --score my_optimizer_solutions.json
+python iccad2026_evaluate.py --score my_optimizer_solutions.json
 ```
 
 This is useful for:

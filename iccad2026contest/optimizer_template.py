@@ -2,92 +2,259 @@
 """
 ICCAD 2026 FloorSet Challenge - Optimizer Template
 
-HOW TO USE:
-1. Copy this file: cp optimizer_template.py my_optimizer.py
-2. Implement your algorithm in the MyOptimizer.solve() method
-3. Test: python contest.py --evaluate my_optimizer.py
-4. Validate: python contest.py --validate my_optimizer.py
+USAGE:
+  1. Copy: cp optimizer_template.py my_optimizer.py
+  2. Replace the B*-tree code with your algorithm
+  3. Test: python iccad2026_evaluate.py --evaluate my_optimizer.py
 
-TRAINING DATA (1M samples) + COST FUNCTION:
-  # Explore data
-  python contest.py --training
-  
-  # In your training code:
-  from contest import get_training_dataloader, compute_training_loss
-  
-  dataloader = get_training_dataloader(batch_size=64, num_samples=10000)
-  for inputs, labels in dataloader:
-      area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
-      polygons, metrics = labels  # Ground truth solutions
-      
-      # Your model predicts positions
-      predicted = my_model(inputs)
-      
-      # Compute loss (SAME cost function as final evaluation)
-      loss = compute_training_loss(
-          predicted, b2b_conn, p2b_conn, pins_pos, area_target
-      )['total']
-      
-      loss.backward()  # For gradient-based methods
+BASELINE: B*-tree Simulated Annealing
+  - GUARANTEES: Overlap-free, area constraints satisfied
+  - NOT HANDLED: Fixed, preplaced, MIB, cluster, boundary constraints
 
-Your optimizer will receive:
-  - block_count: Number of blocks to place  
-  - area_targets: Target area per block [n_blocks]
-  - b2b_connectivity: Block-to-block edges [n_edges x 3] (i, j, weight)
-  - p2b_connectivity: Pin-to-block edges [n_edges x 3] (pin_idx, block_idx, weight)
-  - pins_pos: Pin positions [n_pins x 2]
-  - constraints: Constraint flags [n_blocks x 5]
-    - col 0: Fixed (shape must match ground truth)
-    - col 1: Preplaced (shape AND position must match)
-    - col 2: MIB group ID (>0 means blocks must have same shape)
-    - col 3: Cluster group ID (>0 means blocks must be contiguous)
-    - col 4: Boundary (bitfield: LEFT=1, RIGHT=2, TOP=4, BOTTOM=8)
+Your solve() receives:
+  - block_count: int
+  - area_targets: [n] target area per block
+  - b2b_connectivity: [edges, 3] (block_i, block_j, weight)
+  - p2b_connectivity: [edges, 3] (pin_idx, block_idx, weight)
+  - pins_pos: [n_pins, 2] pin (x, y)
+  - constraints: [n, 5] (fixed, preplaced, MIB, cluster, boundary)
 
-Your optimizer must return:
-  - List of (x, y, width, height) tuples, one per block
-  - MUST return exactly `block_count` tuples
+Your solve() must return:
+  - List of (x, y, width, height), exactly block_count tuples
 
-HARD CONSTRAINTS (violation = infeasible, Cost = 10.0):
-  - NO OVERLAPS: Blocks cannot overlap (touching edges OK)
-  - AREA TOLERANCE: Block area (w × h) must be within 1% of area_targets[i]
+HARD CONSTRAINTS (violation = Cost 10.0):
+  - NO OVERLAPS between blocks
+  - AREA: w*h within 1% of area_targets[i]
 """
 
 import math
 import random
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import torch
 
-# Add contest directory for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Import cost function for querying during optimization
-from contest import (
+from iccad2026_evaluate import (
     FloorplanOptimizer,
     calculate_hpwl_b2b,
     calculate_hpwl_p2b,
     calculate_bbox_area,
     check_overlap,
-    get_training_dataloader,      # For loading 1M training samples
-    compute_training_loss,        # For computing loss during training
-    compute_training_loss_batch   # For batch loss computation
 )
 
 
+# =============================================================================
+# B*-TREE DATA STRUCTURE
+# Replace this entire class if using a different representation
+# (Sequence Pair, O-tree, Corner Block List, etc.)
+# =============================================================================
+
+class BStarTree:
+    """
+    B*-tree for overlap-free floorplanning.
+    
+    Left child: placed to the RIGHT of parent
+    Right child: placed ABOVE parent (same x)
+    """
+    
+    def __init__(self, n_blocks: int, widths: List[float], heights: List[float]):
+        self.n = n_blocks
+        self.widths = list(widths)
+        self.heights = list(heights)
+        self.parent = [-1] * n_blocks
+        self.left = [-1] * n_blocks
+        self.right = [-1] * n_blocks
+        self.root = 0
+        self._build_random_tree()
+    
+    def _build_random_tree(self):
+        if self.n == 0:
+            return
+        self.parent = [-1] * self.n
+        self.left = [-1] * self.n
+        self.right = [-1] * self.n
+        
+        order = list(range(self.n))
+        random.shuffle(order)
+        self.root = order[0]
+        
+        for i in range(1, self.n):
+            block = order[i]
+            existing = order[random.randint(0, i - 1)]
+            if random.random() < 0.5:
+                if self.left[existing] == -1:
+                    self.left[existing] = block
+                    self.parent[block] = existing
+                elif self.right[existing] == -1:
+                    self.right[existing] = block
+                    self.parent[block] = existing
+                else:
+                    self._insert_at_leaf(block, existing)
+            else:
+                if self.right[existing] == -1:
+                    self.right[existing] = block
+                    self.parent[block] = existing
+                elif self.left[existing] == -1:
+                    self.left[existing] = block
+                    self.parent[block] = existing
+                else:
+                    self._insert_at_leaf(block, existing)
+    
+    def _insert_at_leaf(self, block: int, start: int):
+        current = start
+        while True:
+            if random.random() < 0.5:
+                if self.left[current] == -1:
+                    self.left[current] = block
+                    self.parent[block] = current
+                    return
+                current = self.left[current]
+            else:
+                if self.right[current] == -1:
+                    self.right[current] = block
+                    self.parent[block] = current
+                    return
+                current = self.right[current]
+    
+    def pack(self) -> List[Tuple[float, float, float, float]]:
+        """Compute (x, y, w, h) from tree structure. Overlap-free by construction."""
+        positions = [(0.0, 0.0, self.widths[i], self.heights[i]) for i in range(self.n)]
+        if self.n == 0:
+            return positions
+        
+        contour = []  # (x_start, x_end, y_top)
+        
+        def get_contour_y(x_start: float, x_end: float) -> float:
+            max_y = 0.0
+            for cx_start, cx_end, cy_top in contour:
+                if x_start < cx_end and x_end > cx_start:
+                    max_y = max(max_y, cy_top)
+            return max_y
+        
+        def update_contour(x_start: float, x_end: float, y_top: float):
+            contour.append((x_start, x_end, y_top))
+        
+        def dfs(node: int, parent_x: float, is_left_child: bool):
+            if node == -1:
+                return
+            w, h = self.widths[node], self.heights[node]
+            if node == self.root:
+                x, y = 0.0, 0.0
+            elif is_left_child:
+                x = parent_x
+                y = get_contour_y(x, x + w)
+            else:
+                x = parent_x
+                y = get_contour_y(x, x + w)
+            
+            positions[node] = (x, y, w, h)
+            update_contour(x, x + w, y + h)
+            dfs(self.left[node], x + w, True)
+            dfs(self.right[node], x, False)
+        
+        dfs(self.root, 0.0, False)
+        return positions
+    
+    def copy(self) -> 'BStarTree':
+        new = BStarTree.__new__(BStarTree)
+        new.n = self.n
+        new.widths = self.widths.copy()
+        new.heights = self.heights.copy()
+        new.parent = self.parent.copy()
+        new.left = self.left.copy()
+        new.right = self.right.copy()
+        new.root = self.root
+        return new
+    
+    # SA moves
+    def move_rotate(self, block: int):
+        """Swap width/height (90° rotation, preserves area)."""
+        self.widths[block], self.heights[block] = self.heights[block], self.widths[block]
+    
+    def move_swap(self, b1: int, b2: int):
+        """Swap two blocks' dimensions."""
+        self.widths[b1], self.widths[b2] = self.widths[b2], self.widths[b1]
+        self.heights[b1], self.heights[b2] = self.heights[b2], self.heights[b1]
+    
+    def move_delete_insert(self, block: int):
+        """Delete and reinsert block at random position."""
+        if self.n <= 1:
+            return
+        w, h = self.widths[block], self.heights[block]
+        self._delete_node(block)
+        target = random.randint(0, self.n - 1)
+        while target == block:
+            target = random.randint(0, self.n - 1)
+        self._insert_node(block, target, random.choice([True, False]))
+        self.widths[block], self.heights[block] = w, h
+    
+    def _delete_node(self, node: int):
+        parent = self.parent[node]
+        left_child = self.left[node]
+        right_child = self.right[node]
+        
+        if left_child == -1 and right_child == -1:
+            replacement = -1
+        elif left_child == -1:
+            replacement = right_child
+        elif right_child == -1:
+            replacement = left_child
+        else:
+            replacement = left_child
+            rightmost = left_child
+            while self.right[rightmost] != -1:
+                rightmost = self.right[rightmost]
+            self.right[rightmost] = right_child
+            self.parent[right_child] = rightmost
+        
+        if parent == -1:
+            self.root = replacement
+        elif self.left[parent] == node:
+            self.left[parent] = replacement
+        else:
+            self.right[parent] = replacement
+        
+        if replacement != -1:
+            self.parent[replacement] = parent
+        
+        self.parent[node] = -1
+        self.left[node] = -1
+        self.right[node] = -1
+    
+    def _insert_node(self, node: int, target: int, as_left: bool):
+        if as_left:
+            old_child = self.left[target]
+            self.left[target] = node
+        else:
+            old_child = self.right[target]
+            self.right[target] = node
+        self.parent[node] = target
+        if old_child != -1:
+            self.left[node] = old_child
+            self.parent[old_child] = node
+
+
+# =============================================================================
+# OPTIMIZER CLASS - Replace this with your algorithm
+# =============================================================================
+
 class MyOptimizer(FloorplanOptimizer):
     """
-    YOUR OPTIMIZER IMPLEMENTATION
+    B*-tree Simulated Annealing baseline.
     
-    Replace this with your algorithm (Simulated Annealing, Genetic Algorithm,
-    Reinforcement Learning, Sequence Pair, B*-Tree, etc.)
+    REPLACE THIS CLASS WITH YOUR ALGORITHM.
+    Keep the solve() signature the same.
     """
     
     def __init__(self, verbose: bool = False):
         super().__init__(verbose)
-        # Add your initialization here
-        self.max_iterations = 10000
+        self.initial_temp = 1000.0
+        self.final_temp = 1.0
+        self.cooling_rate = 0.995
+        self.moves_per_temp = 100
     
     def solve(
         self,
@@ -99,235 +266,67 @@ class MyOptimizer(FloorplanOptimizer):
         constraints: torch.Tensor
     ) -> List[Tuple[float, float, float, float]]:
         """
-        YOUR ALGORITHM GOES HERE
+        B*-tree SA optimization.
         
-        Args:
-            block_count: Number of blocks (21-120)
-            area_targets: [n_blocks] target area for each block
-            b2b_connectivity: [n_edges, 3] block-to-block edges (i, j, weight)
-            p2b_connectivity: [n_edges, 3] pin-to-block edges (pin, block, weight)
-            pins_pos: [n_pins, 2] pin (x, y) positions
-            constraints: [n_blocks, 5] constraint flags per block
-        
-        Returns:
-            List of exactly `block_count` tuples: [(x, y, width, height), ...]
-        
-        HARD CONSTRAINTS (violation = Cost 10.0):
-            - NO OVERLAPS between blocks (touching edges OK)
-            - AREA: w*h must be within 1% of area_targets[i]
+        REPLACE THIS METHOD with your algorithm.
+        Must return List[(x, y, w, h)] with exactly block_count entries.
         """
-        
-        # =====================================================================
-        # STEP 1: Initialize block dimensions from target areas
-        # =====================================================================
-        positions = []
-        total_area = sum(float(area_targets[i]) for i in range(block_count) 
-                        if area_targets[i] > 0)
-        canvas_size = math.sqrt(total_area) * 1.5  # Allow some slack
-        
+        # Initialize dimensions (w*h = target area, start square)
+        widths, heights = [], []
         for i in range(block_count):
             area = float(area_targets[i]) if area_targets[i] > 0 else 1.0
-            # Start with square blocks (you can optimize aspect ratios)
             w = h = math.sqrt(area)
-            # Random initial placement
-            x = random.uniform(0, max(0, canvas_size - w))
-            y = random.uniform(0, max(0, canvas_size - h))
-            positions.append([x, y, w, h])
+            widths.append(w)
+            heights.append(h)
         
-        # =====================================================================
-        # STEP 2: YOUR OPTIMIZATION ALGORITHM
-        # =====================================================================
+        # Build B*-tree
+        tree = BStarTree(block_count, widths, heights)
+        current_positions = tree.pack()
+        current_cost = self._cost(current_positions, b2b_connectivity, p2b_connectivity, pins_pos)
         
-        # Example: Simple hill-climbing (REPLACE WITH YOUR ALGORITHM)
-        current_cost = self._evaluate(positions, b2b_connectivity, 
-                                      p2b_connectivity, pins_pos)
-        best_positions = [tuple(p) for p in positions]
+        best_tree = tree.copy()
+        best_positions = current_positions
         best_cost = current_cost
         
-        for iteration in range(self.max_iterations):
-            # Pick a random block to move
-            idx = random.randint(0, block_count - 1)
-            old_pos = positions[idx].copy()
+        # Simulated Annealing
+        temp = self.initial_temp
+        while temp > self.final_temp:
+            for _ in range(self.moves_per_temp):
+                old_tree = tree.copy()
+                
+                # Random move
+                move = random.randint(0, 2)
+                if move == 0:
+                    tree.move_rotate(random.randint(0, block_count - 1))
+                elif move == 1:
+                    b1, b2 = random.randint(0, block_count - 1), random.randint(0, block_count - 1)
+                    if b1 != b2:
+                        tree.move_swap(b1, b2)
+                else:
+                    tree.move_delete_insert(random.randint(0, block_count - 1))
+                
+                new_positions = tree.pack()
+                new_cost = self._cost(new_positions, b2b_connectivity, p2b_connectivity, pins_pos)
+                
+                # Accept/reject
+                delta = new_cost - current_cost
+                if delta < 0 or random.random() < math.exp(-delta / temp):
+                    current_positions = new_positions
+                    current_cost = new_cost
+                    if current_cost < best_cost:
+                        best_cost = current_cost
+                        best_positions = new_positions
+                        best_tree = tree.copy()
+                else:
+                    tree = old_tree
             
-            # Random perturbation
-            positions[idx][0] += random.gauss(0, canvas_size * 0.05)
-            positions[idx][1] += random.gauss(0, canvas_size * 0.05)
-            positions[idx][0] = max(0, positions[idx][0])
-            positions[idx][1] = max(0, positions[idx][1])
-            
-            # Evaluate new solution
-            new_cost = self._evaluate(positions, b2b_connectivity,
-                                     p2b_connectivity, pins_pos)
-            
-            # Accept if better (or add SA acceptance criterion)
-            if new_cost < current_cost:
-                current_cost = new_cost
-                if current_cost < best_cost:
-                    best_cost = current_cost
-                    best_positions = [tuple(p) for p in positions]
-            else:
-                # Reject - restore old position
-                positions[idx] = old_pos
-        
-        # =====================================================================
-        # STEP 3: Handle constraints (IMPLEMENT BASED ON YOUR APPROACH)
-        # =====================================================================
-        # TODO: Handle fixed, preplaced, MIB, cluster, boundary constraints
-        # See contest.py for constraint column meanings
+            temp *= self.cooling_rate
         
         return best_positions
     
-    def _evaluate(self, positions, b2b_conn, p2b_conn, pins_pos) -> float:
-        """
-        Evaluate current solution quality.
-        
-        You can use the imported functions:
-        - calculate_hpwl_b2b(positions, b2b_connectivity)
-        - calculate_hpwl_p2b(positions, p2b_connectivity, pins_pos)  
-        - calculate_bbox_area(positions)
-        - check_overlap(positions)
-        """
-        pos_tuples = [tuple(p) for p in positions]
-        
-        hpwl_b2b = calculate_hpwl_b2b(pos_tuples, b2b_conn)
-        hpwl_p2b = calculate_hpwl_p2b(pos_tuples, p2b_conn, pins_pos)
-        area = calculate_bbox_area(pos_tuples)
-        overlaps = check_overlap(pos_tuples)
-        
-        # Combine objectives (tune these weights for your approach)
-        return hpwl_b2b + hpwl_p2b + area * 0.01 + overlaps * 10000
-
-
-# =============================================================================
-# You can also use the built-in baselines for comparison
-# =============================================================================
-# from contest import RandomOptimizer, SimulatedAnnealingOptimizer
-
-
-# =============================================================================
-# TRAINING EXAMPLE (for neural network / RL approaches)
-# =============================================================================
-def training_example():
-    """
-    Example showing how to train a model using the 1M training samples
-    with the SAME cost function used for final evaluation.
-    
-    Run this with: python optimizer_template.py --train
-    """
-    print("="*70)
-    print("TRAINING EXAMPLE - Using 1M samples with contest cost function")
-    print("="*70)
-    
-    # =========================================================================
-    # STEP 1: Load training data
-    # =========================================================================
-    print("\n[1] Loading training data...")
-    dataloader = get_training_dataloader(
-        batch_size=1,           # Use larger batch for real training
-        num_samples=5,          # Use None for all 1M samples
-        shuffle=False
-    )
-    print(f"    Loaded dataloader with {len(dataloader)} batches")
-    
-    # =========================================================================
-    # STEP 2: Training loop with cost function
-    # =========================================================================
-    print("\n[2] Training loop example:")
-    print("-"*70)
-    
-    for batch_idx, (inputs, labels) in enumerate(dataloader):
-        # Unpack inputs
-        area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
-        polygons, metrics = labels  # Ground truth (for supervised learning)
-        
-        block_count = int((area_target != -1).sum().item())
-        print(f"\n    Sample {batch_idx}: {block_count} blocks")
-        
-        # YOUR MODEL would predict positions here
-        # For demo, we use random positions
-        predicted_positions = []
-        canvas = math.sqrt(sum(float(a) for a in area_target[:block_count] if a > 0)) * 1.5
-        for i in range(block_count):
-            area = float(area_target[i]) if area_target[i] > 0 else 1.0
-            w = h = math.sqrt(area)
-            x = random.uniform(0, canvas - w)
-            y = random.uniform(0, canvas - h)
-            predicted_positions.append((x, y, w, h))
-        
-        # =====================================================================
-        # COMPUTE LOSS - Same cost function as final evaluation!
-        # =====================================================================
-        loss_dict = compute_training_loss(
-            predicted_positions,
-            b2b_conn, p2b_conn, pins_pos, area_target,
-            return_components=True
-        )
-        
-        print(f"    Loss breakdown:")
-        print(f"      HPWL (b2b):       {loss_dict['hpwl_b2b']:.2f}")
-        print(f"      HPWL (p2b):       {loss_dict['hpwl_p2b']:.2f}")
-        print(f"      HPWL (total):     {loss_dict['hpwl_total']:.2f}")
-        print(f"      Bounding box:     {loss_dict['bbox_area']:.2f}")
-        print(f"      Overlaps:         {loss_dict['overlap_count']}")
-        print(f"      Area violations:  {loss_dict['area_violations']}")
-        print(f"      ─────────────────────────────────")
-        print(f"      TOTAL LOSS:       {loss_dict['total']:.2f}")
-        
-        # In real training:
-        # loss = loss_dict['total']
-        # loss.backward()  # If using PyTorch autograd
-        # optimizer.step()
-    
-    print("\n" + "="*70)
-    print("Training example complete!")
-    print("In your real code:")
-    print("  1. Replace random positions with your model's predictions")
-    print("  2. Use loss_dict['total'] for backpropagation")
-    print("  3. The loss uses the SAME cost function as final evaluation")
-    print("="*70)
-
-
-if __name__ == '__main__':
-    import sys
-    
-    if len(sys.argv) > 1 and sys.argv[1] == '--train':
-        # Show training example
-        training_example()
-    else:
-        # Quick inference test
-        print("Testing MyOptimizer...")
-        print("(Run with --train flag to see training example)\n")
-        
-        optimizer = MyOptimizer(verbose=True)
-        
-        # Dummy test data
-        block_count = 10
-        area_targets = torch.tensor([100.0] * block_count)
-        b2b_connectivity = torch.tensor([
-            [0, 1, 1.0], [1, 2, 1.0], [2, 3, 1.0], [3, 4, 1.0],
-            [4, 5, 1.0], [5, 6, 1.0], [6, 7, 1.0], [7, 8, 1.0], [8, 9, 1.0]
-        ])
-        p2b_connectivity = torch.tensor([[0, 0, 1.0], [1, 9, 1.0]])
-        pins_pos = torch.tensor([[0.0, 0.0], [100.0, 100.0]])
-        constraints = torch.zeros(block_count, 5)
-        
-        positions = optimizer.solve(
-            block_count, area_targets, b2b_connectivity,
-            p2b_connectivity, pins_pos, constraints
-        )
-        
-        print(f"\nResult: {len(positions)} blocks placed")
-        print(f"Sample positions: {positions[:3]}...")
-        
-        # Evaluate using contest cost function
-        loss_dict = compute_training_loss(
-            positions, b2b_connectivity, p2b_connectivity, 
-            pins_pos, area_targets, return_components=True
-        )
-        
-        print(f"\nMetrics (using contest cost function):")
-        print(f"  HPWL:     {loss_dict['hpwl_total']:.2f}")
-        print(f"  Area:     {loss_dict['bbox_area']:.2f}")
-        print(f"  Overlaps: {loss_dict['overlap_count']}")
-        print(f"  TOTAL:    {loss_dict['total']:.2f}")
-        print("\nRun 'python contest.py --evaluate optimizer_template.py' for full evaluation.")
+    def _cost(self, positions, b2b_conn, p2b_conn, pins_pos) -> float:
+        """Evaluate solution quality (lower is better)."""
+        hpwl_b2b = calculate_hpwl_b2b(positions, b2b_conn)
+        hpwl_p2b = calculate_hpwl_p2b(positions, p2b_conn, pins_pos)
+        area = calculate_bbox_area(positions)
+        return hpwl_b2b + hpwl_p2b + area * 0.01
