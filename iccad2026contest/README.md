@@ -3,19 +3,35 @@
 ## Getting Started
 
 ```bash
-# 0. Install dependencies
-pip install -r requirements.txt
+# 1. Clone FloorSet repository
+git clone https://github.com/IntelLabs/FloorSet.git
+cd FloorSet
 
-# 1. Copy the template
-cp optimizer_template.py my_optimizer.py
+# 2. Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or: source venv/bin/activate.csh  # csh/tcsh
 
-# 2. Implement your algorithm in my_optimizer.py (edit the solve() method)
+# 3. Install dependencies
+pip install -r iccad2026contest/requirements.txt
 
-# 3. Evaluate on all 100 test cases
-python iccad2026_evaluate.py --evaluate my_optimizer.py
+# 4. Download FloorSet-Lite dataset
+#    Place in: FloorSet/LiteTensorData/ (training, 1M samples)
+#              FloorSet/LiteTensorDataTest/ (test, 100 cases)
 
-# 4. Validate before submission
-python iccad2026_evaluate.py --validate my_optimizer.py
+# 5. Copy the template optimizer
+cp iccad2026contest/optimizer_template.py iccad2026contest/my_optimizer.py
+
+# 6. Implement your algorithm in my_optimizer.py (edit the solve() method)
+
+# 7. Evaluate on test cases
+python iccad2026contest/iccad2026_evaluate.py --evaluate iccad2026contest/my_optimizer.py
+
+# 8. Evaluate single test case (for debugging, 0-99)
+python iccad2026contest/iccad2026_evaluate.py --evaluate iccad2026contest/my_optimizer.py --test-id 0
+
+# 9. Validate before submission
+python iccad2026contest/iccad2026_evaluate.py --validate iccad2026contest/my_optimizer.py
 ```
 
 ---
