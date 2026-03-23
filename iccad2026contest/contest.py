@@ -1100,6 +1100,131 @@ def visualize_test_case(test_id: int, data_path: str = "../",
 
 
 # =============================================================================
+# SCORE SAVED SOLUTIONS
+# =============================================================================
+def score_saved_solutions(
+    solutions_path: str,
+    data_path: str = "../",
+    output_path: Optional[str] = None
+) -> Dict:
+    """
+    Re-score saved solutions without re-running the optimizer.
+    
+    Args:
+        solutions_path: Path to solutions JSON (from --save-solutions)
+        data_path: Path to FloorSet data
+        output_path: Output file path (optional)
+    
+    Returns:
+        Dict with scores
+    """
+    print(f"\nScoring saved solutions: {solutions_path}")
+    print("=" * 60)
+    
+    # Load solutions
+    with open(solutions_path) as f:
+        data = json.load(f)
+    
+    solutions = data.get('solutions', [])
+    print(f"Loaded {len(solutions)} solutions")
+    
+    # Load test dataset
+    dataset = FloorplanDatasetLiteTest(data_path)
+    
+    results = []
+    
+    for sol in tqdm(solutions, desc="Scoring"):
+        test_id = sol['test_id']
+        positions = [tuple(p) for p in sol['positions']]
+        block_count = sol['block_count']
+        
+        # Load test case data
+        inputs, labels = dataset[test_id]
+        area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
+        polygons, metrics = labels
+        
+        # Extract baseline from ground truth
+        gt_positions = []
+        for i in range(block_count):
+            block = polygons[i]
+            valid = block[block[:, 0] != -1]
+            if len(valid) > 0:
+                x_min, y_min = valid.min(dim=0).values
+                x_max, y_max = valid.max(dim=0).values
+                gt_positions.append((float(x_min), float(y_min),
+                                   float(x_max - x_min), float(y_max - y_min)))
+            else:
+                gt_positions.append((0, 0, 1, 1))
+        
+        # Calculate baselines
+        hpwl_baseline = calculate_hpwl_b2b(gt_positions, b2b_conn) + \
+                       calculate_hpwl_p2b(gt_positions, p2b_conn, pins_pos)
+        area_baseline = calculate_bbox_area(gt_positions)
+        
+        # Use stored metrics if available
+        if metrics is not None and len(metrics) >= 8:
+            if metrics[0] > 0:
+                area_baseline = float(metrics[0])
+            if metrics[-2] > 0 and metrics[-1] >= 0:
+                hpwl_baseline = float(metrics[-2]) + float(metrics[-1])
+        
+        # Evaluate the saved solution
+        solution_metrics = evaluate_solution(
+            {'positions': positions, 'runtime': 1.0},
+            {'hpwl_baseline': hpwl_baseline, 'area_baseline': area_baseline},
+            constraints,
+            b2b_conn,
+            p2b_conn,
+            pins_pos,
+            area_target,
+            gt_positions,
+            median_runtime=1.0
+        )
+        
+        results.append({
+            'test_id': test_id,
+            'block_count': block_count,
+            'is_feasible': solution_metrics.is_feasible,
+            'hpwl_gap': solution_metrics.hpwl_gap,
+            'area_gap': solution_metrics.area_gap,
+            'cost': solution_metrics.cost,
+            'hpwl_total': solution_metrics.hpwl_total,
+            'bbox_area': solution_metrics.bbox_area,
+            'overlaps': solution_metrics.overlap_violations,
+            'area_violations': solution_metrics.area_violations
+        })
+    
+    # Compute total score
+    costs = [r['cost'] for r in results]
+    blocks = [r['block_count'] for r in results]
+    total_score = compute_total_score(costs, blocks)
+    
+    # Print summary
+    print("\n" + "=" * 60)
+    print("SCORING RESULTS")
+    print("=" * 60)
+    print(f"\nTotal Score: {total_score:.4f}")
+    print(f"Tests: {len(results)}")
+    print(f"Feasible: {sum(1 for r in results if r['is_feasible'])}")
+    print(f"Avg Cost: {sum(costs)/len(costs):.4f}")
+    
+    output = {
+        'source': solutions_path,
+        'timestamp': datetime.now().isoformat(),
+        'total_score': total_score,
+        'results': results
+    }
+    
+    # Save if output path provided
+    if output_path:
+        with open(output_path, 'w') as f:
+            json.dump(output, f, indent=2)
+        print(f"\nResults saved to {output_path}")
+    
+    return output
+
+
+# =============================================================================
 # CLI INTERFACE
 # =============================================================================
 def print_contest_info():
@@ -1142,6 +1267,8 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--evaluate', '-e', metavar='OPTIMIZER',
                      help='Evaluate an optimizer file')
+    mode.add_argument('--score', '-S', metavar='SOLUTIONS_JSON',
+                     help='Re-score saved solutions (from --save-solutions)')
     mode.add_argument('--validate', '-v', metavar='OPTIMIZER',
                      help='Validate a submission file')
     mode.add_argument('--baseline', '-b', action='store_true',
@@ -1231,6 +1358,9 @@ def main():
     elif args.training:
         num_samples = 10 if args.test_id is None else args.test_id
         explore_training_data(args.data_path, num_samples=num_samples, verbose=True)
+    
+    elif args.score:
+        score_saved_solutions(args.score, args.data_path, args.output)
 
 
 if __name__ == '__main__':

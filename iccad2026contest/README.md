@@ -63,6 +63,23 @@ for inputs, labels in dataloader:
 
 ---
 
+## Saving and Re-scoring Solutions
+
+```bash
+# Run optimizer and save solutions to JSON
+python contest.py --evaluate my_optimizer.py --save-solutions
+# Output: my_optimizer_solutions.json
+
+# Re-score saved solutions (without re-running optimizer)
+python contest.py --score my_optimizer_solutions.json
+```
+
+This is useful for:
+- Comparing scores after bug fixes
+- Analyzing results without re-running slow optimizers
+
+---
+
 ## Scoring
 
 ```
@@ -79,8 +96,9 @@ Cost = (1 + 0.5×(HPWL_gap + Area_gap)) × exp(2×Violations) × RuntimeFactor
 | Command | Description |
 |---------|-------------|
 | `--evaluate FILE` | Run optimizer on 100 test cases, compute score |
+| `--score FILE` | Re-score saved solutions (without re-running optimizer) |
 | `--validate FILE` | Check submission format before submitting |
 | `--training` | Explore training data statistics |
 | `--test-id N` | Run on single test case (for debugging) |
-| `--save-solutions` | Export positions to JSON |
+| `--save-solutions` | Export positions to JSON (use with --evaluate) |
 | `--info` | Show scoring formula |
