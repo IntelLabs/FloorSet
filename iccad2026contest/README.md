@@ -1,5 +1,48 @@
 # ICCAD 2026 FloorSet Challenge
 
+## Dataset Terminology
+
+| Dataset | Samples | Purpose | Available |
+|---------|---------|---------|-----------|
+| **Training** | 1M | Train your models | Yes (LiteTensorData/) |
+| **Validation** | 100 | Tune and evaluate locally | Yes (LiteTensorDataTest/) |
+| **Test** | 100 | Final contest ranking | Hidden (same format as validation) |
+
+All datasets contain floorplans with **21 to 120 blocks** (partitions).
+
+## Dataset Downloads
+
+- **Training data (1M samples):** [FloorSet-Lite on Hugging Face](https://huggingface.co/datasets/IntelLabs/FloorSet)
+- **Validation data (100 samples):** [FloorSet-Lite-Test on Hugging Face](https://huggingface.co/datasets/IntelLabs/FloorSet)
+
+Place datasets in:
+- `FloorSet/LiteTensorData/` (training)
+- `FloorSet/LiteTensorDataTest/` (validation)
+
+## PyTorch DataLoaders (Auto-Download)
+
+The contest framework provides convenience functions in `iccad2026_evaluate.py` that **automatically download** data from Hugging Face:
+
+```python
+from iccad2026_evaluate import get_training_dataloader, get_validation_dataloader
+
+# Training data (1M samples) - auto-downloads ~15GB on first use
+train_loader = get_training_dataloader(batch_size=1, num_samples=1000)
+
+# Validation data (100 samples) - auto-downloads ~15MB on first use
+val_loader = get_validation_dataloader(batch_size=1)
+```
+
+**Functions:**
+| Function | Dataset | Samples | Purpose |
+|----------|---------|---------|---------|
+| `get_training_dataloader()` | Training | 1M | Train ML models |
+| `get_validation_dataloader()` | Validation | 100 | Local evaluation |
+
+Both return standard PyTorch `DataLoader` objects.
+
+---
+
 ## Getting Started
 
 ```bash
@@ -15,19 +58,19 @@ source venv/bin/activate  # Linux/Mac
 # 3. Install dependencies
 pip install -r iccad2026contest/requirements.txt
 
-# 4. Download FloorSet-Lite dataset
+# 4. Download datasets (see links above)
 #    Place in: FloorSet/LiteTensorData/ (training, 1M samples)
-#              FloorSet/LiteTensorDataTest/ (test, 100 cases)
+#              FloorSet/LiteTensorDataTest/ (validation, 100 samples)
 
 # 5. Copy the template optimizer
 cp iccad2026contest/optimizer_template.py iccad2026contest/my_optimizer.py
 
 # 6. Implement your algorithm in my_optimizer.py (edit the solve() method)
 
-# 7. Evaluate on test cases
+# 7. Evaluate on validation set
 python iccad2026contest/iccad2026_evaluate.py --evaluate iccad2026contest/my_optimizer.py
 
-# 8. Evaluate single test case (for debugging, 0-99)
+# 8. Evaluate single validation case (for debugging, 0-99)
 python iccad2026contest/iccad2026_evaluate.py --evaluate iccad2026contest/my_optimizer.py --test-id 0
 
 # 9. Validate before submission
@@ -108,7 +151,15 @@ for batch in dataloader:
 - **No model provided** - You must implement your own neural network
 - **Placement constraints NOT included** - Fixed, preplaced, MIB, cluster, boundary constraints are not in the differentiable loss (but ARE checked in final evaluation)
 - **Training proxy** - The differentiable loss approximates the contest score; final evaluation uses exact (non-differentiable) scoring
-- **Ground truth as baseline** - Training uses `metrics` from training data; test evaluation uses test baselines
+- **Ground truth as baseline** - Training uses `metrics` from training data; validation/test evaluation uses validation/test baselines
+
+---
+
+## Final Evaluation
+
+Your submission will be evaluated on:
+1. **Validation set (100 samples)** - Provided for local development (LiteTensorDataTest/)
+2. **Hidden test set (100 samples)** - Same format, same block range (21-120), used for final ranking
 
 ---
 

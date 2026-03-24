@@ -4,12 +4,19 @@ ICCAD 2026 FloorSet Challenge - Contest Framework
 
 Unified contest framework with all functionality accessible via switches.
 
+Dataset Terminology:
+    - Training set:    1M samples (LiteTensorData/) - for training models
+    - Validation set:  100 samples (LiteTensorDataTest/) - for local evaluation
+    - Test set:        100 samples (hidden) - for final contest ranking
+
+All datasets contain floorplans with 21 to 120 blocks.
+
 Usage:
-    python iccad2026_evaluate.py --evaluate my_optimizer.py         # Evaluate optimizer
-    python iccad2026_evaluate.py --validate my_optimizer.py         # Validate submission
+    python iccad2026_evaluate.py --evaluate my_optimizer.py         # Evaluate on validation set
+    python iccad2026_evaluate.py --validate my_optimizer.py         # Validate submission format
     python iccad2026_evaluate.py --baseline                         # Generate baseline metrics
     python iccad2026_evaluate.py --score solution.json              # Score a solution file
-    python iccad2026_evaluate.py --visualize --test-id 0            # Visualize test case
+    python iccad2026_evaluate.py --visualize --test-id 0            # Visualize validation case
     python iccad2026_evaluate.py --info                             # Show contest info
 
 Examples:
@@ -97,8 +104,8 @@ class SolutionMetrics:
 
 @dataclass
 class TestResult:
-    """Result for a single test case."""
-    test_id: int
+    """Result for a single validation/test case evaluation."""
+    test_id: int  # case index (0-99)
     block_count: int
     is_feasible: bool
     hpwl_gap: float
@@ -503,10 +510,10 @@ class ContestEvaluator:
     def _load_dataset(self):
         if self.dataset is None:
             if self.verbose:
-                print("Loading test dataset...")
+                print("Loading validation dataset...")
             self.dataset = FloorplanDatasetLiteTest(str(self.data_path))
             if self.verbose:
-                print(f"Loaded {len(self.dataset)} test cases")
+                print(f"Loaded {len(self.dataset)} validation cases")
     
     def _load_optimizer(self, optimizer_path: str) -> FloorplanOptimizer:
         """Load optimizer from file."""
@@ -750,7 +757,7 @@ def validate_submission(optimizer_path: str, quick: bool = False, verbose: bool 
 # =============================================================================
 def generate_baselines(data_path: str = "../", output_path: str = None, 
                        verbose: bool = True) -> Dict:
-    """Generate baseline metrics for all test cases."""
+    """Generate baseline metrics for all validation cases."""
     if verbose:
         print("Generating baseline metrics...")
     
@@ -839,7 +846,7 @@ def compute_training_loss(
     For gradient-based training, implement differentiable approximations.
     For RL/evolution, this can serve as a reward signal.
     
-    Final contest ranking uses: iccad2026_evaluate.py --evaluate on TEST data.
+    Final contest ranking uses hidden TEST data (same format as validation).
     
     Args:
         positions: Predicted [(x, y, w, h), ...] for each block
@@ -1174,6 +1181,36 @@ def get_training_dataloader(
     )
 
 
+def get_validation_dataloader(
+    data_path: str = "../",
+    batch_size: int = 1,
+) -> DataLoader:
+    """
+    Get a DataLoader for the FloorSet-Lite validation data (100 samples).
+    
+    Args:
+        data_path: Path to FloorSet data directory
+        batch_size: Batch size (default 1 for evaluation)
+    
+    Returns:
+        DataLoader for validation (100 samples, indices 0-99)
+        
+    Example:
+        dataloader = get_validation_dataloader()
+        for idx, sample in enumerate(dataloader):
+            inputs = sample['input']
+            area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
+            # Evaluate your optimizer
+    """
+    dataset = FloorplanDatasetLiteTest(data_path)
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=test_floorplan_collate
+    )
+
+
 def explore_training_data(
     data_path: str = "../",
     num_samples: int = 5,
@@ -1246,7 +1283,11 @@ def explore_training_data(
 # =============================================================================
 def visualize_test_case(test_id: int, data_path: str = "../", 
                        solution_path: str = None):
-    """Visualize a test case (and optionally a solution)."""
+    """Visualize a validation case (and optionally a solution).
+    
+    Note: This function works with the validation set (LiteTensorDataTest/).
+    The same visualization would apply to hidden test data.
+    """
     try:
         import matplotlib.pyplot as plt
         import matplotlib.patches as mpatches
@@ -1279,7 +1320,7 @@ def visualize_test_case(test_id: int, data_path: str = "../",
     
     # Plot ground truth
     ax = axes[0]
-    ax.set_title(f"Test Case {test_id} - Ground Truth ({block_count} blocks)")
+    ax.set_title(f"Validation Case {test_id} - Ground Truth ({block_count} blocks)")
     
     colors = plt.cm.tab20(np.linspace(0, 1, block_count))
     for i, (x, y, w, h) in enumerate(gt_positions):
@@ -1294,8 +1335,8 @@ def visualize_test_case(test_id: int, data_path: str = "../",
     ax.set_ylabel('Y')
     
     plt.tight_layout()
-    plt.savefig(f'test_case_{test_id}.png', dpi=150)
-    print(f"Saved visualization to test_case_{test_id}.png")
+    plt.savefig(f'validation_case_{test_id}.png', dpi=150)
+    print(f"Saved visualization to validation_case_{test_id}.png")
     plt.show()
 
 
@@ -1435,17 +1476,22 @@ def print_contest_info():
 ║          ICCAD 2026 FloorSet Challenge - Contest Framework       ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║                                                                  ║
+║  DATASETS:                                                       ║
+║    Training:    1M samples (LiteTensorData/) - for model training║
+║    Validation: 100 samples (LiteTensorDataTest/) - local eval    ║
+║    Test:       100 samples (hidden) - final contest ranking      ║
+║                                                                  ║
 ║  SCORING FORMULA:                                                ║
 ║  Cost = (1 + α(HPWL_gap + Area_gap)) × exp(β·V_rel) × R_factor   ║
 ║                                                                  ║
 ║  Parameters: α=0.5, β=2.0, γ=0.3, M=10.0 (infeasible)           ║
 ║                                                                  ║
 ║  COMMANDS:                                                       ║
-║    --evaluate optimizer.py   Run evaluation on test set          ║
+║    --evaluate optimizer.py   Run on validation set (100 cases)   ║
 ║    --validate optimizer.py   Validate submission format          ║
 ║    --baseline                Generate baseline metrics            ║
 ║    --training                Explore training data (1M samples)  ║
-║    --visualize --test-id N   Visualize test case N               ║
+║    --visualize --test-id N   Visualize validation case N         ║
 ║    --info                    Show this information               ║
 ║                                                                  ║
 ║  EXAMPLES:                                                       ║
@@ -1467,15 +1513,15 @@ def main():
     # Mode switches
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--evaluate', '-e', metavar='OPTIMIZER',
-                     help='Evaluate an optimizer file')
+                     help='Evaluate an optimizer on 100 validation cases')
     mode.add_argument('--score', '-S', metavar='SOLUTIONS_JSON',
                      help='Re-score saved solutions (from --save-solutions)')
     mode.add_argument('--validate', '-v', metavar='OPTIMIZER',
                      help='Validate a submission file')
     mode.add_argument('--baseline', '-b', action='store_true',
-                     help='Generate baseline metrics')
+                     help='Generate baseline metrics on validation set')
     mode.add_argument('--visualize', '-V', action='store_true',
-                     help='Visualize a test case')
+                     help='Visualize a validation case')
     mode.add_argument('--training', '-T', action='store_true',
                      help='Explore training data (1M samples)')
     mode.add_argument('--info', '-i', action='store_true',
@@ -1487,7 +1533,7 @@ def main():
     parser.add_argument('--output', '-o', default=None,
                        help='Output file path')
     parser.add_argument('--test-id', '-t', type=int, default=None,
-                       help='Specific test case ID (0-99)')
+                       help='Specific validation case ID (0-99)')
     parser.add_argument('--verbose', action='store_true',
                        help='Verbose output')
     parser.add_argument('--quick', '-q', action='store_true',
