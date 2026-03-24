@@ -6,17 +6,45 @@ FloorSet is the basis for the **ICCAD 2026 CAD Contest Problem C, The FloorSet C
 
 **Contest webpage:** https://www.iccad-contest.org/Problems.html
 
-The contest infrastructure is in the [`iccad2026contest/`](./iccad2026contest/) directory:
-- `iccad2026_evaluate.py` - Evaluation and scoring framework
-- `optimizer_template.py` - B*-tree SA baseline (contestants replace this)
-- `training_example.py` - Training data usage example
-- `README.md` - Getting started guide
+**Contest specification (PDF):** [FloorplanningContest_ICCAD_2026_v7.pdf](./iccad2026contest/FloorplanningContest_ICCAD_2026_v7.pdf)
+
+### Contest Datasets
+
+| Dataset | Samples | Purpose | Available |
+|---------|---------|---------|-----------|
+| **Training** | 1M | Train ML models | Yes (`LiteTensorData/`) |
+| **Validation** | 100 | Local evaluation | Yes (`LiteTensorDataTest/`) |
+| **Test** | 100 | Final ranking | Hidden |
+
+All datasets contain floorplans with **21 to 120 blocks**.
+
+### Quick Start
 
 ```bash
 cd iccad2026contest/
 cp optimizer_template.py my_optimizer.py
 # Implement your algorithm in my_optimizer.py
 python iccad2026_evaluate.py --evaluate my_optimizer.py
+```
+
+### Contest Infrastructure
+
+The contest framework is in [`iccad2026contest/`](./iccad2026contest/):
+- `iccad2026_evaluate.py` - Evaluation framework with auto-download dataloaders
+- `optimizer_template.py` - B*-tree SA baseline (replace with your algorithm)
+- `training_example.py` - Differentiable training loss example
+- `README.md` - Detailed getting started guide
+
+### Data Access
+
+```python
+from iccad2026_evaluate import get_training_dataloader, get_validation_dataloader
+
+# Training data (1M samples) - auto-downloads from Hugging Face
+train_loader = get_training_dataloader(batch_size=1, num_samples=1000)
+
+# Validation data (100 samples) - auto-downloads from Hugging Face  
+val_loader = get_validation_dataloader(batch_size=1)
 ```
 
 ---
