@@ -6,3 +6,4 @@ numpy>=1.24.0
 shapely>=2.0.0
 matplotlib>=3.7.0
 tqdm>=4.60.0
+requests>=2.28.0

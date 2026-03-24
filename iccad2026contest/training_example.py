@@ -2,105 +2,128 @@
 """
 ICCAD 2026 FloorSet Challenge - Training Data Example
 
-Shows how to use the 1M training samples with the contest cost function.
-Run: python training_example.py
+Shows how to train a neural network using the DIFFERENTIABLE contest cost function.
+Run: python iccad2026contest/training_example.py
 
-For neural network / RL approaches, use this pattern in your training loop.
+The loss is the SAME formula as contest evaluation:
+  Cost = (1 + α·(HPWL_gap + Area_gap)) × exp(β·V_soft)
+
+But implemented with differentiable operations for .backward()
 """
 
-import math
-import random
 import sys
 from pathlib import Path
 
 import torch
+import torch.nn as nn
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from iccad2026_evaluate import (
+from iccad2026contest.iccad2026_evaluate import (
     get_training_dataloader,
-    compute_training_loss,
-    compute_training_loss_batch
+    compute_training_loss_differentiable,
 )
 
 
-def training_example():
-    """
-    Example showing how to train a model using the 1M training samples
-    with the SAME cost function used for final evaluation.
-    """
+def main():
     print("="*70)
-    print("TRAINING EXAMPLE - Using 1M samples with contest cost function")
+    print("ICCAD 2026 FloorSet Challenge - Training Example")
+    print("Using DIFFERENTIABLE contest cost function")
     print("="*70)
     
     # =========================================================================
-    # STEP 1: Load training data
+    # Load training data (1M samples)
     # =========================================================================
-    print("\n[1] Loading training data...")
+    print("\nLoading training data...")
     dataloader = get_training_dataloader(
-        batch_size=1,           # Use larger batch for real training
-        num_samples=5,          # Use None for all 1M samples
+        batch_size=1,
+        num_samples=3,  # Use None for all 1M samples
         shuffle=False
     )
-    print(f"    Loaded dataloader with {len(dataloader)} batches")
+    print(f"Loaded {len(dataloader)} samples\n")
     
     # =========================================================================
-    # STEP 2: Training loop with cost function
+    # Training loop
     # =========================================================================
-    print("\n[2] Training loop example:")
-    print("-"*70)
-    
-    for batch_idx, (inputs, labels) in enumerate(dataloader):
-        # Unpack inputs
-        area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
-        polygons, metrics = labels  # Ground truth (for supervised learning)
+    for batch_idx, batch in enumerate(dataloader):
+        # Unpack batch - 8 tensors
+        area_target, b2b_conn, p2b_conn, pins_pos, constraints, tree_sol, fp_sol, metrics = batch
         
+        # Remove batch dimension (batch_size=1)
+        area_target = area_target.squeeze(0)
+        b2b_conn = b2b_conn.squeeze(0)
+        p2b_conn = p2b_conn.squeeze(0)
+        pins_pos = pins_pos.squeeze(0)
+        metrics = metrics.squeeze(0)
+        fp_sol = fp_sol.squeeze(0)
+        
+        # Count valid blocks (non-padded)
         block_count = int((area_target != -1).sum().item())
-        print(f"\n    Sample {batch_idx}: {block_count} blocks")
         
-        # YOUR MODEL would predict positions here
-        # For demo, we use random positions
-        predicted_positions = []
-        canvas = math.sqrt(sum(float(a) for a in area_target[:block_count] if a > 0)) * 1.5
-        for i in range(block_count):
-            area = float(area_target[i]) if area_target[i] > 0 else 1.0
-            w = h = math.sqrt(area)
-            x = random.uniform(0, canvas - w)
-            y = random.uniform(0, canvas - h)
-            predicted_positions.append((x, y, w, h))
+        print(f"Sample {batch_idx}: {block_count} blocks")
         
-        # =====================================================================
-        # COMPUTE LOSS - Same cost function as final evaluation!
-        # =====================================================================
-        loss_dict = compute_training_loss(
-            predicted_positions,
-            b2b_conn, p2b_conn, pins_pos, area_target,
-            return_components=True
+        # =================================================================
+        # YOUR NEURAL NETWORK HERE
+        # =================================================================
+        # Example: positions = model(area_target, b2b_conn, p2b_conn, ...)
+        #
+        # Output shape: [block_count, 4] = (x, y, w, h) per block
+        #
+        # For demo, use ground truth with noise (to show gradients work)
+        ground_truth = fp_sol[:block_count]  # [w, h, x, y]
+        # Reorder to [x, y, w, h] for our loss function
+        positions = torch.zeros(block_count, 4, requires_grad=True)
+        positions = torch.stack([
+            ground_truth[:, 2] + torch.randn(block_count) * 5,  # x + noise
+            ground_truth[:, 3] + torch.randn(block_count) * 5,  # y + noise
+            ground_truth[:, 0],  # w
+            ground_truth[:, 1],  # h
+        ], dim=1)
+        positions = positions.clone().detach().requires_grad_(True)
+        
+        # =================================================================
+        # DIFFERENTIABLE CONTEST COST FUNCTION
+        # Same formula as actual evaluation!
+        # Cost = (1 + α·(HPWL_gap + Area_gap)) × exp(β·V_soft)
+        # =================================================================
+        loss = compute_training_loss_differentiable(
+            positions,
+            b2b_conn,
+            p2b_conn,
+            pins_pos,
+            area_target[:block_count],
+            metrics
         )
         
-        print(f"    Loss breakdown:")
-        print(f"      HPWL (b2b):       {loss_dict['hpwl_b2b']:.2f}")
-        print(f"      HPWL (p2b):       {loss_dict['hpwl_p2b']:.2f}")
-        print(f"      HPWL (total):     {loss_dict['hpwl_total']:.2f}")
-        print(f"      Bounding box:     {loss_dict['bbox_area']:.2f}")
-        print(f"      Overlaps:         {loss_dict['overlap_count']}")
-        print(f"      Area violations:  {loss_dict['area_violations']}")
-        print(f"      ─────────────────────────────────")
-        print(f"      TOTAL LOSS:       {loss_dict['total']:.2f}")
+        print(f"  Contest Cost (differentiable): {loss.item():.4f}")
+        
+        # Verify gradients flow
+        loss.backward()
+        print(f"  Gradient exists: {positions.grad is not None}")
+        print(f"  Gradient norm: {positions.grad.norm().item():.4f}")
+        print()
         
         # In real training:
-        # loss = loss_dict['total']
-        # loss.backward()  # If using PyTorch autograd
+        # optimizer.zero_grad()
+        # positions = model(inputs)
+        # loss = compute_training_loss_differentiable(positions, ...)
+        # loss.backward()
         # optimizer.step()
     
-    print("\n" + "="*70)
-    print("Training example complete!")
-    print("In your real code:")
-    print("  1. Replace random positions with your model's predictions")
-    print("  2. Use loss_dict['total'] for backpropagation")
-    print("  3. The loss uses the SAME cost function as final evaluation")
+    print("="*70)
+    print("Training data format:")
+    print("  - positions: [N, 4] tensor of (x, y, w, h) per block")
+    print("  - Loss = contest cost formula, fully differentiable")
+    print("")
+    print("The loss includes:")
+    print("  - HPWL gap vs ground truth baseline")
+    print("  - Area gap vs ground truth baseline")
+    print("  - Overlap violation (soft, differentiable)")
+    print("  - Area tolerance violation (soft, differentiable)")
+    print("")
+    print("Final evaluation: python iccad2026_evaluate.py --evaluate your_optimizer.py")
     print("="*70)
 
 
 if __name__ == '__main__':
-    training_example()
+    main()

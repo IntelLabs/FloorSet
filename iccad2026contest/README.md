@@ -66,24 +66,49 @@ def solve(self, block_count, area_targets, b2b_connectivity,
 
 ```bash
 # See full example
-python training_example.py
+python iccad2026contest/training_example.py
 ```
 
 ```python
-from iccad2026_evaluate import get_training_dataloader, compute_training_loss
+from iccad2026_evaluate import get_training_dataloader, compute_training_loss_differentiable
 
-dataloader = get_training_dataloader(batch_size=64, num_samples=10000)
+dataloader = get_training_dataloader(batch_size=1, num_samples=10000)
 
-for inputs, labels in dataloader:
-    area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
+for batch in dataloader:
+    area_target, b2b_conn, p2b_conn, pins_pos, constraints, tree_sol, fp_sol, metrics = batch
     
-    # Your model predicts positions
-    predicted = my_model(inputs)
+    # Squeeze batch dimension
+    area_target = area_target.squeeze(0)
+    b2b_conn = b2b_conn.squeeze(0)
+    p2b_conn = p2b_conn.squeeze(0)
+    pins_pos = pins_pos.squeeze(0)
+    metrics = metrics.squeeze(0)
     
-    # Compute loss (same formula used for final scoring)
-    loss = compute_training_loss(predicted, b2b_conn, p2b_conn, 
-                                  pins_pos, area_target)['total']
+    block_count = int((area_target != -1).sum().item())
+    
+    # Your NN predicts positions: [N, 4] tensor of (x, y, w, h)
+    positions = my_model(area_target, b2b_conn, p2b_conn, pins_pos, constraints)
+    
+    # DIFFERENTIABLE contest cost function
+    # Same formula: Cost = (1 + α·(HPWL_gap + Area_gap)) × exp(β·V_soft)
+    loss = compute_training_loss_differentiable(
+        positions, b2b_conn, p2b_conn, pins_pos, 
+        area_target[:block_count], metrics
+    )
+    loss.backward()  # Gradients flow!
 ```
+
+**Differentiable loss includes:**
+- HPWL gap (vs ground truth baseline)
+- Area gap (vs ground truth baseline)
+- Overlap violation (soft, differentiable)
+- Area tolerance violation (soft, differentiable)
+
+**Important assumptions:**
+- **No model provided** - You must implement your own neural network
+- **Placement constraints NOT included** - Fixed, preplaced, MIB, cluster, boundary constraints are not in the differentiable loss (but ARE checked in final evaluation)
+- **Training proxy** - The differentiable loss approximates the contest score; final evaluation uses exact (non-differentiable) scoring
+- **Ground truth as baseline** - Training uses `metrics` from training data; test evaluation uses test baselines
 
 ---
 

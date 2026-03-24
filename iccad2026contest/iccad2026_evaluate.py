@@ -39,8 +39,9 @@ from tqdm import tqdm
 # Add parent directory for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from litetestLoader import FloorplanDatasetLiteTest, floorplan_collate
+from litetestLoader import FloorplanDatasetLiteTest, floorplan_collate as test_floorplan_collate
 from liteLoader import FloorplanDatasetLite  # Training data (1M samples)
+from lite_dataset import floorplan_collate as train_floorplan_collate
 from cost import calculate_weighted_b2b_wirelength, calculate_weighted_p2b_wirelength
 from utils import (
     unpad_tensor,
@@ -821,14 +822,24 @@ def compute_training_loss(
     p2b_connectivity: torch.Tensor,
     pins_pos: torch.Tensor,
     area_targets: torch.Tensor,
+    baseline_metrics: Optional[torch.Tensor] = None,
     constraints: Optional[torch.Tensor] = None,
     return_components: bool = False
 ) -> Dict[str, float]:
     """
-    Compute loss/cost for a training sample.
+    Compute training loss/cost for a training sample.
     
-    USE THIS IN YOUR TRAINING LOOP to get the same cost function
-    used for final evaluation.
+    WARNING: This is a TRAINING PROXY, not the actual contest evaluation score!
+    
+    Differences from actual contest evaluation:
+    - Uses training data ground truth as baseline (evaluation uses test baselines)
+    - NOT differentiable (uses integer violation counts, conditional logic)
+    - Does NOT check all placement constraints (fixed, MIB, cluster, boundary)
+    
+    For gradient-based training, implement differentiable approximations.
+    For RL/evolution, this can serve as a reward signal.
+    
+    Final contest ranking uses: iccad2026_evaluate.py --evaluate on TEST data.
     
     Args:
         positions: Predicted [(x, y, w, h), ...] for each block
@@ -836,49 +847,86 @@ def compute_training_loss(
         p2b_connectivity: Pin-to-block edges from training sample
         pins_pos: Pin positions from training sample
         area_targets: Target areas from training sample
-        constraints: Constraint flags (optional)
+        baseline_metrics: Ground truth metrics tensor from training data
+                         [area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, 
+                          num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]
+        constraints: Constraint flags (optional, not currently used)
         return_components: If True, return all components separately
     
     Returns:
-        Dict with 'total' loss and optionally all components
+        Dict with 'total' training cost and optionally all components
     
     Example:
-        for inputs, labels in dataloader:
-            area_target, b2b_conn, p2b_conn, pins_pos, constraints = inputs
+        for batch in dataloader:
+            area_target, b2b_conn, p2b_conn, pins_pos, constraints, tree_sol, fp_sol, metrics = batch
             
             # Your model predicts positions
-            predicted_positions = my_model(inputs)
+            predicted_positions = my_model(...)
             
-            # Compute loss using contest cost function
+            # Compute training loss (PROXY, not actual evaluation)
             loss_dict = compute_training_loss(
                 predicted_positions,
-                b2b_conn[i], p2b_conn[i], pins_pos[i], area_target[i]
+                b2b_conn.squeeze(0), p2b_conn.squeeze(0), pins_pos.squeeze(0), 
+                area_target.squeeze(0), baseline_metrics=metrics.squeeze(0)
             )
             
-            loss = loss_dict['total']  # Use this for backprop
+            loss = loss_dict['total']  # Same formula as contest scoring
     """
-    # Compute wirelength
+    block_count = len(positions)
+    
+    # Compute predicted wirelength
     hpwl_b2b = calculate_hpwl_b2b(positions, b2b_connectivity)
     hpwl_p2b = calculate_hpwl_p2b(positions, p2b_connectivity, pins_pos)
     hpwl_total = hpwl_b2b + hpwl_p2b
     
-    # Compute area
+    # Compute predicted area (bounding box)
     bbox_area = calculate_bbox_area(positions)
     
-    # Compute violations (for penalty terms)
+    # Compute violations
     overlap_count = check_overlap(positions)
     area_violations = check_area_tolerance(positions, area_targets)
+    total_violations = overlap_count + area_violations
     
-    # Combined loss (tune weights as needed)
-    # These weights approximate the contest scoring impact
-    loss = (
-        hpwl_total +                    # Wirelength (main objective)
-        0.01 * bbox_area +              # Area (secondary objective)
-        10000 * overlap_count +         # Hard constraint: no overlaps
-        5000 * area_violations          # Hard constraint: area tolerance
-    )
+    # Check feasibility (hard constraints)
+    is_feasible = (overlap_count == 0 and area_violations == 0)
     
-    result = {'total': loss}
+    # If baseline_metrics provided, use contest formula
+    if baseline_metrics is not None:
+        # metrics format: [area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, 
+        #                  num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]
+        baseline_area = float(baseline_metrics[0])
+        baseline_b2b_wl = float(baseline_metrics[6])
+        baseline_p2b_wl = float(baseline_metrics[7])
+        baseline_hpwl = baseline_b2b_wl + baseline_p2b_wl
+        
+        # Compute gaps (same as evaluation)
+        hpwl_gap = (hpwl_total - baseline_hpwl) / max(baseline_hpwl, 1e-6)
+        area_gap = (bbox_area - baseline_area) / max(baseline_area, 1e-6)
+        
+        # Violations relative to block count
+        violations_relative = total_violations / max(block_count, 1)
+        
+        # EXACT contest formula:
+        # Cost = (1 + α·(HPWL_gap + Area_gap)) × exp(β·V_rel) = M if infeasible
+        if not is_feasible:
+            cost = M_PENALTY  # 10.0
+        else:
+            quality_factor = 1 + ALPHA * (max(0, hpwl_gap) + max(0, area_gap))
+            violation_factor = math.exp(BETA * violations_relative)
+            cost = quality_factor * violation_factor
+    else:
+        # Fallback: simplified loss when no baseline (not recommended)
+        cost = (
+            hpwl_total +
+            0.01 * bbox_area +
+            10000 * overlap_count +
+            5000 * area_violations
+        )
+        hpwl_gap = 0.0
+        area_gap = 0.0
+        violations_relative = total_violations / max(block_count, 1)
+    
+    result = {'total': cost}
     
     if return_components:
         result.update({
@@ -887,10 +935,158 @@ def compute_training_loss(
             'hpwl_total': hpwl_total,
             'bbox_area': bbox_area,
             'overlap_count': overlap_count,
-            'area_violations': area_violations
+            'area_violations': area_violations,
+            'hpwl_gap': hpwl_gap if baseline_metrics is not None else None,
+            'area_gap': area_gap if baseline_metrics is not None else None,
+            'is_feasible': is_feasible
         })
     
     return result
+
+
+def compute_training_loss_differentiable(
+    positions: torch.Tensor,
+    b2b_connectivity: torch.Tensor,
+    p2b_connectivity: torch.Tensor,
+    pins_pos: torch.Tensor,
+    area_targets: torch.Tensor,
+    baseline_metrics: torch.Tensor,
+    constraints: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
+    """
+    Compute contest evaluation score in DIFFERENTIABLE form.
+    
+    This is the SAME formula as contest evaluation, but using differentiable
+    operations so gradients can flow through for neural network training.
+    
+    Cost = (1 + α·(HPWL_gap + Area_gap)) × exp(β·V_soft)
+    
+    Where V_soft is a differentiable proxy for violations:
+    - Overlap: sum of pairwise overlap areas (normalized)
+    - Area tolerance: soft penalty when outside 1% tolerance
+    
+    Args:
+        positions: Tensor [N, 4] of (x, y, w, h) for each block
+        b2b_connectivity: Block-to-block edges [E, 3] = (block_i, block_j, weight)
+        p2b_connectivity: Pin-to-block edges [E, 3] = (pin_i, block_j, weight)
+        pins_pos: Pin positions [P, 2]
+        area_targets: Target areas [N]
+        baseline_metrics: Ground truth metrics [8] from training data
+                         [area, num_pins, num_nets, ..., b2b_wl, p2b_wl]
+        constraints: Optional placement constraints [N, 5]
+    
+    Returns:
+        Differentiable loss tensor (scalar) - can call .backward()
+    
+    Example:
+        positions = model(inputs)  # [N, 4] tensor
+        loss = compute_training_loss_differentiable(
+            positions, b2b_conn, p2b_conn, pins_pos, area_targets, metrics
+        )
+        loss.backward()  # Gradients flow!
+    """
+    N = positions.shape[0]
+    
+    # Unpack positions: [x, y, w, h]
+    x = positions[:, 0]
+    y = positions[:, 1]
+    w = positions[:, 2]
+    h = positions[:, 3]
+    
+    # Compute centroids
+    cx = x + w / 2
+    cy = y + h / 2
+    
+    # =========================================================================
+    # 1. HPWL (Half-Perimeter Wirelength) - Differentiable
+    # =========================================================================
+    hpwl_b2b = torch.tensor(0.0, device=positions.device, dtype=positions.dtype)
+    valid_b2b = b2b_connectivity[b2b_connectivity[:, 0] >= 0]
+    for edge in valid_b2b:
+        i, j, weight = int(edge[0]), int(edge[1]), edge[2]
+        if i < N and j < N:
+            dx = torch.abs(cx[i] - cx[j])
+            dy = torch.abs(cy[i] - cy[j])
+            hpwl_b2b = hpwl_b2b + weight * (dx + dy)
+    
+    hpwl_p2b = torch.tensor(0.0, device=positions.device, dtype=positions.dtype)
+    valid_p2b = p2b_connectivity[p2b_connectivity[:, 0] >= 0]
+    for edge in valid_p2b:
+        pin_idx, block_idx, weight = int(edge[0]), int(edge[1]), edge[2]
+        if pin_idx < pins_pos.shape[0] and block_idx < N:
+            pin_x, pin_y = pins_pos[pin_idx, 0], pins_pos[pin_idx, 1]
+            dx = torch.abs(cx[block_idx] - pin_x)
+            dy = torch.abs(cy[block_idx] - pin_y)
+            hpwl_p2b = hpwl_p2b + weight * (dx + dy)
+    
+    hpwl_total = hpwl_b2b + hpwl_p2b
+    
+    # =========================================================================
+    # 2. Bounding Box Area - Differentiable
+    # =========================================================================
+    x_min = x.min()
+    y_min = y.min()
+    x_max = (x + w).max()
+    y_max = (y + h).max()
+    bbox_area = (x_max - x_min) * (y_max - y_min)
+    
+    # =========================================================================
+    # 3. Overlap Violation (Differentiable) - Sum of overlap areas
+    # =========================================================================
+    overlap_area = torch.tensor(0.0, device=positions.device, dtype=positions.dtype)
+    for i in range(N):
+        for j in range(i + 1, N):
+            # Overlap dimensions (clamped to 0 with ReLU for differentiability)
+            xi1, yi1, wi, hi = x[i], y[i], w[i], h[i]
+            xj1, yj1, wj, hj = x[j], y[j], w[j], h[j]
+            
+            overlap_x = torch.relu(torch.min(xi1 + wi, xj1 + wj) - torch.max(xi1, xj1))
+            overlap_y = torch.relu(torch.min(yi1 + hi, yj1 + hj) - torch.max(yi1, yj1))
+            overlap_area = overlap_area + overlap_x * overlap_y
+    
+    # Normalize by total block area
+    total_block_area = (w * h).sum()
+    overlap_violation = overlap_area / (total_block_area + 1e-6)
+    
+    # =========================================================================
+    # 4. Area Tolerance Violation (Differentiable) - Soft penalty
+    # =========================================================================
+    actual_areas = w * h
+    valid_mask = area_targets > 0
+    area_errors = torch.zeros_like(area_targets)
+    area_errors[valid_mask] = torch.abs(actual_areas[valid_mask] - area_targets[valid_mask]) / area_targets[valid_mask]
+    
+    # Soft hinge: penalty only when exceeding 1% tolerance
+    tolerance = AREA_TOLERANCE  # 0.01
+    area_excess = torch.relu(area_errors - tolerance)
+    area_violation = area_excess.sum() / (valid_mask.sum() + 1e-6)
+    
+    # =========================================================================
+    # 5. Compute Gaps vs Baseline
+    # =========================================================================
+    # baseline_metrics: [area, num_pins, num_total_nets, num_b2b_nets, num_p2b_nets, 
+    #                    num_hardconstraints, b2b_weighted_wl, p2b_weighted_wl]
+    baseline_area = baseline_metrics[0]
+    baseline_hpwl = baseline_metrics[6] + baseline_metrics[7]
+    
+    hpwl_gap = torch.relu((hpwl_total - baseline_hpwl) / (baseline_hpwl + 1e-6))
+    area_gap = torch.relu((bbox_area - baseline_area) / (baseline_area + 1e-6))
+    
+    # =========================================================================
+    # 6. Combined Violation (Differentiable proxy for V_rel)
+    # =========================================================================
+    V_soft = overlap_violation + area_violation
+    
+    # =========================================================================
+    # 7. Contest Cost Formula (Differentiable)
+    # Cost = (1 + α·(HPWL_gap + Area_gap)) × exp(β·V_soft)
+    # =========================================================================
+    quality_factor = 1 + ALPHA * (hpwl_gap + area_gap)
+    violation_factor = torch.exp(BETA * V_soft)
+    
+    cost = quality_factor * violation_factor
+    
+    return cost
 
 
 def compute_training_loss_batch(
@@ -974,7 +1170,7 @@ def get_training_dataloader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
-        collate_fn=floorplan_collate
+        collate_fn=train_floorplan_collate
     )
 
 
