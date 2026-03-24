@@ -21,10 +21,17 @@ Your solve() receives:
 
 Your solve() must return:
   - List of (x, y, width, height), exactly block_count tuples
+  - Floating-point coordinates allowed
+  - Any aspect ratio (w/h) allowed
 
 HARD CONSTRAINTS (violation = Cost 10.0):
   - NO OVERLAPS between blocks
   - AREA: w*h within 1% of area_targets[i]
+
+RELAXED CONSTRAINTS:
+  - Aspect ratio: Any w/h ratio is valid
+  - Fixed outline: Removed (implicitly optimized via p2b HPWL and bbox area)
+  - Coordinates: Floating-point allowed
 """
 
 import math

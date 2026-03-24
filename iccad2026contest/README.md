@@ -12,6 +12,25 @@
 
 All datasets contain floorplans with **21 to 120 blocks** (partitions).
 
+## Constraint Relaxations
+
+The following constraints from the original FloorSet dataset are **relaxed** for this contest:
+
+| Constraint | Status | Notes |
+|------------|--------|-------|
+| **Aspect Ratio** | ✅ Relaxed | Any width/height ratio allowed |
+| **Fixed Outline** | ✅ Removed | Implicitly handled by pin-to-block HPWL and bounding box area in cost function |
+| **Coordinates** | ✅ Floating-point allowed | Integer coordinates not required |
+
+**Hard Constraints** (violation = infeasible, score 10.0):
+- **No overlaps** between blocks
+- **Area tolerance**: Block area (w × h) must be within **1%** of target area
+
+**Soft Constraints** (in cost function):
+- Block-to-block HPWL (minimize wirelength)
+- Pin-to-block HPWL (encourages placement near fixed pins, replaces fixed outline)
+- Bounding box area (encourages compact placement)
+
 ## Dataset Downloads
 
 - **Training data (1M samples):** [FloorSet-Lite on Hugging Face](https://huggingface.co/datasets/IntelLabs/FloorSet)
@@ -92,18 +111,26 @@ def solve(self, block_count, area_targets, b2b_connectivity,
     Place blocks to minimize wirelength and area.
     
     Returns: List of (x, y, width, height) tuples, one per block
+             - Floating-point coordinates allowed
+             - Any aspect ratio allowed (w/h not constrained)
+             - Area (w*h) must be within 1% of area_targets[i]
     """
     positions = []
     for i in range(block_count):
         x, y = 0.0, 0.0       # Your placement algorithm
-        w = h = math.sqrt(area_targets[i])
+        w = h = math.sqrt(area_targets[i])  # Square is simplest valid shape
         positions.append((x, y, w, h))
     return positions
 ```
 
 **Hard Constraints** (violation = score 10.0):
 - No overlapping blocks
-- Block area must be within 1% of target
+- Block area (w × h) must be within 1% of target
+
+**Relaxed Constraints** (not enforced):
+- Aspect ratio: Any width/height ratio is valid
+- Fixed outline: No explicit boundary (implicitly optimized via cost function)
+- Coordinate precision: Floating-point values allowed
 
 ---
 
