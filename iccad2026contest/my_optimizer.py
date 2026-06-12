@@ -2855,9 +2855,9 @@ class MyOptimizer(FloorplanOptimizer):
 
         def repair_limit_default():
             try:
-                return int(os_mod.environ.get("FLOORSET_SOFT_REPAIR_LIMIT", "52" if block_count >= 90 else "34"))
+                return int(os_mod.environ.get("FLOORSET_SOFT_REPAIR_LIMIT", "80" if block_count >= 90 else "34"))
             except Exception:
-                return 52 if block_count >= 90 else 34
+                return 80 if block_count >= 90 else 34
 
         def repair_better(base, candidate, allow_soft_margin=True):
             candidate = normalize_if_safe(candidate)
@@ -3751,6 +3751,73 @@ class MyOptimizer(FloorplanOptimizer):
                     break
             return current
 
+        def force_directed_horizontal_refine(positions, iters=18, lr=0.75):
+            # HPWL cleanup for row-like layouts: slide only unconstrained free
+            # blocks in x.  Boundary/cluster/MIB/fixed blocks stay anchored so
+            # the soft-constraint surface is much narrower than the generic
+            # force-directed pass.
+            if positions is None or len(positions) != block_count:
+                return positions
+            current = [tuple(p) for p in positions]
+            free_idx = [
+                i for i in range(block_count)
+                if (not fixed_xy[i] and not fixed_dim[i]
+                    and boundary_codes[i] == 0 and cluster_ids[i] == 0 and mib_ids[i] == 0)
+            ]
+            if not free_idx:
+                return current
+
+            def local_x_cost(block, rect):
+                x, _y, w, _h = rect
+                cx = x + w / 2.0
+                total = 0.0
+                for nbr, weight in b2b_adj[block]:
+                    nx, _ny, nw, _nh = current[nbr]
+                    total += weight * abs(cx - (nx + nw / 2.0))
+                for pin, weight in p2b_adj[block]:
+                    px = tensor_value(pins_pos, pin, 0)
+                    total += weight * abs(cx - px)
+                return total
+
+            for _ in range(iters):
+                moved = False
+                for i in free_idx:
+                    x, y, w, h = current[i]
+                    cx = x + w / 2.0
+                    fx = wsum = 0.0
+                    for nbr, weight in b2b_adj[i]:
+                        nx, _ny, nw, _nh = current[nbr]
+                        fx += weight * (nx + nw / 2.0 - cx)
+                        wsum += weight
+                    for pin, weight in p2b_adj[i]:
+                        px = tensor_value(pins_pos, pin, 0)
+                        fx += weight * (px - cx)
+                        wsum += weight
+                    if wsum <= 0:
+                        continue
+                    dx = max(-0.9 * w, min(0.9 * w, lr * fx / wsum))
+                    if abs(dx) <= 1e-7:
+                        continue
+                    before = local_x_cost(i, current[i])
+                    for scale in (1.0, 0.5, 0.25, 0.125):
+                        new_rect = (x + dx * scale, y, w, h)
+                        if local_x_cost(i, new_rect) >= before - 1e-9:
+                            continue
+                        blocked = False
+                        for j in range(block_count):
+                            if j == i:
+                                continue
+                            if rectangles_overlap(new_rect, current[j]):
+                                blocked = True
+                                break
+                        if not blocked:
+                            current[i] = new_rect
+                            moved = True
+                            break
+                if not moved:
+                    break
+            return current
+
         def boundary_swap_repair(positions, max_iters=3):
             # For each unsatisfied right/top edge boundary block, try to:
             #   (1) translate to the matching edge if the slot is free
@@ -4050,6 +4117,71 @@ class MyOptimizer(FloorplanOptimizer):
                         members[idx:] = tail + [i]
             return current
 
+        def column_boundary_reorder(positions):
+            # Vertical companion to row_boundary_reorder: move violating
+            # bottom/top-coded blocks to the edge slot of their detected
+            # column.  Dimensions and x positions are preserved; hard_feasible
+            # and the contest proxy gate decide whether the move survives.
+            if positions is None or len(positions) != block_count:
+                return positions
+            current = [tuple(p) for p in positions]
+            bounds = bbox_bounds(current)
+            _, min_y, _, max_y = bounds
+
+            columns = {}
+            for i in range(block_count):
+                if fixed_xy[i]:
+                    continue
+                x, y, w, h = current[i]
+                columns.setdefault((round(x, 5), round(w, 5)), []).append(i)
+
+            for _key, members in columns.items():
+                members.sort(key=lambda i: current[i][1])
+                if any(cluster_ids[j] for j in members):
+                    # Moving cluster members vertically can break edge
+                    # connectivity across rows; cluster-specific repair owns
+                    # those cases.
+                    continue
+                for i in members:
+                    code = boundary_codes[i]
+                    if not code or touches_edge(current[i], bounds, code):
+                        continue
+                    idx = members.index(i)
+                    if (code & 8) and abs(current[members[0]][1] - min_y) < 1e-7:
+                        if any(boundary_codes[j] & 8 for j in members[:idx]):
+                            continue
+                        run_ok = all(
+                            abs(current[members[k]][1] + current[members[k]][3]
+                                - current[members[k + 1]][1]) < 1e-6
+                            for k in range(idx))
+                        if not run_ok:
+                            continue
+                        xi, yi, wi, hi = current[i]
+                        for j in members[:idx]:
+                            xj, yj, wj, hj = current[j]
+                            current[j] = (xj, yj + hi, wj, hj)
+                        current[i] = (xi, min_y, wi, hi)
+                        members[:idx + 1] = [i] + members[:idx]
+                    elif code & 4:
+                        tail = members[idx + 1:]
+                        run_ok = all(
+                            abs(current[members[k]][1] + current[members[k]][3]
+                                - current[members[k + 1]][1]) < 1e-6
+                            for k in range(idx, len(members) - 1))
+                        if any(boundary_codes[j] & 4 for j in tail):
+                            continue
+                        if not run_ok:
+                            continue
+                        xi, yi, wi, hi = current[i]
+                        if max_y - hi < yi - 1e-9:
+                            continue
+                        for j in tail:
+                            xj, yj, wj, hj = current[j]
+                            current[j] = (xj, yj - hi, wj, hj)
+                        current[i] = (xi, max_y - hi, wi, hi)
+                        members[idx:] = tail + [i]
+            return current
+
         if best_positions is not None:
             compacted = compact_pass(best_positions)
             if hard_feasible(compacted):
@@ -4135,6 +4267,22 @@ class MyOptimizer(FloorplanOptimizer):
                     best_cost = ro_cost
                     flow_scores["row_reorder"] = ro_cost
 
+            # Column-aware boundary repair: vertical equivalent of row
+            # reorder for bottom/top-coded blocks.  It is useful for corner
+            # constraints after row_reorder has already fixed left/right.
+            col_reordered = column_boundary_reorder(best_positions)
+            if hard_feasible(col_reordered):
+                cr_cost = full_cost(col_reordered)
+                sv_new = soft_violation_summary(col_reordered)
+                sv_old = soft_violation_summary(best_positions)
+                if (cr_cost + 1e-9 < best_cost
+                        and sv_new["grouping"] <= sv_old["grouping"]
+                        and sv_new["boundary"] <= sv_old["boundary"]
+                        and sv_new["mib"] <= sv_old["mib"]):
+                    best_positions = col_reordered
+                    best_cost = cr_cost
+                    flow_scores["column_reorder"] = cr_cost
+
             # Within-row adjacent swaps: exact HPWL refinement for row-
             # structured layouts (no-op when rows don't abut).
             if os_mod.environ.get("FLOORSET_NO_ROWSWAP", "") != "1":
@@ -4150,6 +4298,22 @@ class MyOptimizer(FloorplanOptimizer):
                         best_positions = row_swapped
                         best_cost = rs_cost
                         flow_scores["row_swap"] = rs_cost
+
+            # Conservative x-only HPWL cleanup for row-like layouts.
+            h_forced = force_directed_horizontal_refine(best_positions)
+            if hard_feasible(h_forced):
+                hf_cost = full_cost(h_forced)
+                sv_new = soft_violation_summary(h_forced)
+                sv_old = soft_violation_summary(best_positions)
+                if (hf_cost + 1e-9 < best_cost
+                        and candidate_wire(h_forced) <= candidate_wire(best_positions) + 1e-9
+                        and bbox_area(h_forced) <= bbox_area(best_positions) + 1e-9
+                        and sv_new["grouping"] <= sv_old["grouping"]
+                        and sv_new["boundary"] <= sv_old["boundary"]
+                        and sv_new["mib"] <= sv_old["mib"]):
+                    best_positions = h_forced
+                    best_cost = hf_cost
+                    flow_scores["force_directed_x"] = hf_cost
 
         result = normalize_if_safe(best_positions)
         if not hard_feasible(result):
